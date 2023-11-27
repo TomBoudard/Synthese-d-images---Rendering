@@ -373,8 +373,8 @@ vec2 cmult(vec2 z1, vec2 z2) {
 }
 
 vec2 csqrt(vec2 z) {
-    float re = pow(1/2 * (length(z) + z.x), 1/2);
-    float im = (z.y < 0. ? -1. : 1.) * pow(1/2 * (length(z) - z.x), 1/2);
+    float re = sqrt(1./2. * (length(z) + z.x));
+    float im = (z.y < 0. ? -1. : 1.) * sqrt(1./2. * (length(z) - z.x));
     return vec2(re, im);
 }
 
@@ -410,7 +410,7 @@ float GGXMicroFacetDistribution(float cos_theta, float alpha) {
 
 float GGXShadowMasking(float cos_theta, float alpha) {
     float sin_theta_2 = (1. - cos_theta * cos_theta);
-    return 1. / (cos_theta + pow(cos_theta * cos_theta + alpha * alpha * sin_theta_2, 1/2));
+    return 1. / (cos_theta + pow(cos_theta * cos_theta + alpha * alpha * sin_theta_2, 1./2.));
 }
 
 float map(float value, float min1, float max1, float min2, float max2) {
@@ -458,7 +458,7 @@ vec4 directIllumination(vec4 color, float ka, float kd, vec4 p, vec4 n, vec4 v, 
     return Ca + (Cd + Cs) * shadowMask;
 }
 
-const int MAX_TRACE = 0;
+const int MAX_TRACE = 7;
 
 void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, out vec4 n)
 {
@@ -541,13 +541,14 @@ vec4 trace(vec4 origin, vec4 dir)
         
         // Refraction / transparence
         float etaMoy = (etaReal.r+etaReal.g+etaReal.b)/3.;
-        float etaSurf = inSurf ? etaMoy : 1./etaMoy;
+        float etaSurf = inSurf ? 1./etaMoy : etaMoy;
         vec4 F = fresnel(dot(N, dir), vec3(etaSurf), vec3(0.));
         
-        vec4 trans = stack[sp].dir; //refract(stack[sp].dir, N, etaSurf);
+        // vec4 trans = stack[sp].dir;
+        vec4 trans = refract(stack[sp].dir, N, 1./etaSurf);
         vec4 transOri = hit + sens * 1000 * EPS * N;
 
-        bool test = (transparent && 0. > F.x);
+        bool test = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
         
         if (test) {
             dir = trans;
@@ -568,7 +569,7 @@ vec4 trace(vec4 origin, vec4 dir)
         sp -= 1;
 
         vec4 F = vec4(1.);
-        if (!transparent) {
+        if (!transparent || stack[sp].h.hit_vptr == GROUND_VPTR) {
             F = fresnel(dot(stack[sp].N, reflect(stack[sp].dir, stack[sp].N)), etaReal, etaImag);
         }
 
@@ -590,7 +591,8 @@ vec4 trace(vec4 origin, vec4 dir)
 
         vec4 dirCol = directIllumination(
             stack[sp].localColor,
-            Ka, Kd,
+            (transparent && stack[sp].h.hit_vptr != GROUND_VPTR) ? 0. : Ka,
+            (transparent && stack[sp].h.hit_vptr != GROUND_VPTR) ? 0. : Kd,
             stack[sp].hit,
             stack[sp].N,
             -stack[sp].dir,
@@ -681,8 +683,9 @@ void main(void) {
     // }
 
     // fresnel function visualisation
-    // vec2 uv = vec2(1, 1) * pix / vec2(640, 480);
-    // nextColor = vec4(smoothstep(0.005, 0., abs(fresnel(1-uv.x, etaReal, etaImag).xyz-vec3(uv.y))), 1.);
+    // vec2 uv = vec2(1, 1) * pix / size;
+    // nextColor = vec4(smoothstep(0.005, 0., abs(fresnel(cos(uv.x*M_PI/2.), etaReal, etaImag).xyz-vec3(uv.y))), 1.);
+    // // nextColor.rgb += smoothstep(0.005, 0., abs(vec3(cos(uv.x*M_PI/2.)) - vec3(uv.y)));
     // if (abs(uv.y - 1.) < 0.002) {
     //     nextColor = vec4(1, 0, 0, 1);
     // }
