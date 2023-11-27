@@ -32,7 +32,7 @@ glShaderWindow::glShaderWindow(QWindow *parent)
       m_program(0), compute_program(0), shadowMapGenerationProgram(0),
       g_vertices(0), g_normals(0), g_texcoords(0), g_colors(0), g_indices(0),
       gpgpu_vertices(0), gpgpu_normals(0), gpgpu_texcoords(0), gpgpu_colors(0), gpgpu_indices(0),
-      environmentMap(0), texture(0), permTexture(0), pixels(0), mouseButton(Qt::NoButton), auxWidget(0),
+      environmentMap(0), texture(0), textureNormal(0), useNormalMap(false), permTexture(0), pixels(0), mouseButton(Qt::NoButton), auxWidget(0),
       isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(true), etaReal({1.5, 1.5, 1.5}), etaImag({0., 0., 0.}), lightIntensity({1., 1., 1.}), shininess(50.0f), lightDistance(5.0f), groundDistance(0.78),
       shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), computeResult(0), gammaCorrection(false),
       m_indexBuffer(QOpenGLBuffer::IndexBuffer), ground_indexBuffer(QOpenGLBuffer::IndexBuffer)
@@ -147,6 +147,26 @@ void glShaderWindow::openNewTexture() {
 				texture->setMinificationFilter(QOpenGLTexture::LinearMipMapLinear);
 				texture->setMagnificationFilter(QOpenGLTexture::Linear);
 				texture->bind(0);
+            }
+        }
+        resetFrame();
+        renderNow();
+        textureNormalName = textureName.left(textureName.size() - 4) + "_normal" + textureName.right(4);
+        if (!textureNormalName.isNull()) {
+            if (textureNormal) {
+                textureNormal->release();
+                textureNormal->destroy();
+                delete textureNormal;
+                textureNormal = 0;
+            }
+			glActiveTexture(GL_TEXTURE4);
+			// the shader wants a texture. We load one.
+			textureNormal = new QOpenGLTexture(QImage(textureNormalName));
+			if (textureNormal) {
+				textureNormal->setWrapMode(QOpenGLTexture::Repeat);
+				textureNormal->setMinificationFilter(QOpenGLTexture::LinearMipMapLinear);
+				textureNormal->setMagnificationFilter(QOpenGLTexture::Linear);
+				textureNormal->bind(4);
             }
         }
         resetFrame();
@@ -289,6 +309,16 @@ void glShaderWindow::updateGammaCorrection(int state)
     resetFrame();
     renderNow();
 }
+void glShaderWindow::updateUseNormalMap(int state)
+{
+    if (state == Qt::Checked) {
+        useNormalMap = true;
+    } else {
+        useNormalMap = false;
+    }
+    resetFrame();
+    renderNow();
+}
 
 
 QWidget *glShaderWindow::makeAuxWindow()
@@ -303,6 +333,11 @@ QWidget *glShaderWindow::makeAuxWindow()
     gammaCorrectionCheckbox->setChecked(gammaCorrection);
     connect(gammaCorrectionCheckbox, SIGNAL(stateChanged(int)), this, SLOT(updateGammaCorrection(int)));
     outer->addWidget(gammaCorrectionCheckbox);
+
+    QCheckBox* useNormalMapCheckBox = new QCheckBox("Use Normal Map");
+    useNormalMapCheckBox->setChecked(useNormalMap);
+    connect(useNormalMapCheckBox, SIGNAL(stateChanged(int)), this, SLOT(updateUseNormalMap(int)));
+    outer->addWidget(useNormalMapCheckBox);
 
     QHBoxLayout *buttons = new QHBoxLayout;
 
@@ -795,6 +830,12 @@ void glShaderWindow::loadTexturesForShaders() {
         delete texture;
         texture = 0;
     }
+    if (textureNormal) {
+        textureNormal->release();
+        textureNormal->destroy();
+        delete textureNormal;
+        textureNormal = 0;
+    }
     if (permTexture) {
         permTexture->release();
         permTexture->destroy();
@@ -825,6 +866,19 @@ void glShaderWindow::loadTexturesForShaders() {
             texture->setMagnificationFilter(QOpenGLTexture::Linear);
             texture->bind(0);
         }
+    }
+    if ((m_program->uniformLocation("normalMap") != -1)
+        || (hasComputeShaders && compute_program->uniformLocation("normalMap") != -1)) {
+		glActiveTexture(GL_TEXTURE4);
+        // the shader wants a texture. We load one.
+        textureNormal = new QOpenGLTexture(QImage(textureNormalName));
+        if (textureNormal) {
+            textureNormal->setWrapMode(QOpenGLTexture::Repeat);
+            textureNormal->setMinificationFilter(QOpenGLTexture::LinearMipMapLinear);
+            textureNormal->setMagnificationFilter(QOpenGLTexture::Linear);
+            textureNormal->bind(4);
+        }
+        
     }
     if ((m_program->uniformLocation("envMap") != -1) 
         || (hasComputeShaders && compute_program->uniformLocation("envMap") != -1)) {
@@ -1055,6 +1109,7 @@ void glShaderWindow::setWorkingDirectory(QString& myPath, QString& myName, QStri
     workingDirectory = myPath;
     modelName = myPath + myName;
     textureName = myPath + "../textures/" + texture;
+    textureNormalName = textureName.left(textureName.size() - 4) + "_normal" + textureName.right(4);
     envMapName = myPath + "../textures/" + envMap;
 }
 
@@ -1225,9 +1280,11 @@ void glShaderWindow::render()
         compute_program->setUniformValueArray("halton2", halton2.data(), halton2.size(), 1);
         compute_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
         compute_program->setUniformValue("gammaCorrection", gammaCorrection);
+        compute_program->setUniformValue("useNormalMap", useNormalMap);
         compute_program->setUniformValue("framebuffer", 2);
         compute_program->setUniformValue("variancebuffer", 3);
         compute_program->setUniformValue("colorTexture", 0);
+        compute_program->setUniformValue("normalMap", 4);
         compute_program->setUniformValue("envMap", 1);
 		glBindImageTexture(2, computeResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
         int worksize_x = nextPower2(width());
@@ -1295,8 +1352,10 @@ void glShaderWindow::render()
     m_program->setUniformValueArray("halton2", halton2.data(), halton2.size(), 1);
     m_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
     m_program->setUniformValue("gammaCorrection", gammaCorrection);
+    m_program->setUniformValue("useNormapMap", useNormalMap);
     m_program->setUniformValue("radius", modelMesh->bsphere.r);
 	if (m_program->uniformLocation("colorTexture") != -1) m_program->setUniformValue("colorTexture", 0);
+	if (m_program->uniformLocation("normalMap") != -1) m_program->setUniformValue("normalMap", 4);
     if (m_program->uniformLocation("envMap") != -1)  m_program->setUniformValue("envMap", 1);
 	else if (m_program->uniformLocation("permTexture") != -1)  m_program->setUniformValue("permTexture", 1);
     // Shadow Mapping

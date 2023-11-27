@@ -14,6 +14,7 @@
 #include <QtGui/QOpenGLFunctions>
 #include <QtGui/QScreen>
 #include <QMouseEvent>
+#include <string>
 
 
 class glShaderWindow : public OpenGLWindow
@@ -55,6 +56,7 @@ public slots:
     void updateEtaImagG(double etaImagG);
     void updateEtaImagB(double etaImagB);
     void updateGammaCorrection(int state);
+    void updateUseNormalMap(int state);
 
 protected:
     void mousePressEvent(QMouseEvent *e);
@@ -84,6 +86,7 @@ private:
     QString  workingDirectory;
     QString  modelName;
     QString  textureName;
+    QString  textureNormalName;
     QString  envMapName;
     trimesh::TriMesh* modelMesh;
     uchar* pixels;
@@ -112,6 +115,7 @@ private:
     float etaImag[3];
     int frame_index = 0;
     bool gammaCorrection;
+    bool useNormalMap;
     float lightIntensity[3];
     float shininess;
     float lightDistance;
@@ -132,6 +136,7 @@ private:
     QOpenGLShaderProgram *shadowMapGenerationProgram;
     QOpenGLTexture* environmentMap;
     QOpenGLTexture* texture;
+    QOpenGLTexture* textureNormal;
     QOpenGLTexture* permTexture;   // for Perlin noise
     QOpenGLTexture* computeResult; // output of compute shader
     // Model

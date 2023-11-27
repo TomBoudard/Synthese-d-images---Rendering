@@ -5,6 +5,8 @@ layout(binding = 3, rgba32f) uniform image2D variancebuffer;
 
 uniform sampler2D colorTexture;
 uniform sampler2D envMap;
+uniform bool useNormalMap;
+uniform sampler2D normalMap;
 uniform mat4 mat_inverse;
 uniform mat4 persp_inverse;
 uniform vec3 lightIntensity;
@@ -458,7 +460,7 @@ vec4 directIllumination(vec4 color, float ka, float kd, vec4 p, vec4 n, vec4 v, 
     return Ca + (Cd + Cs) * shadowMask;
 }
 
-const int MAX_TRACE = 0;
+const int MAX_TRACE = 3;
 
 void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, out vec4 n)
 {
@@ -466,7 +468,13 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
     if (h.hit_vptr == GROUND_VPTR) {
         color = texture(colorTexture, h.t.pq);
         p.y = -groundDistance;
-        n = vec4(0.0, 1.0, 0.0, 0.0);
+        if (useNormalMap){
+            vec3 normal = 2*(texture(normalMap, h.t.pq).xyz) - 1.;
+            n = normalize(vec4(normal.x, normal.z, -normal.y, 0.0));
+        }
+        else{
+            n = vec4(0.0, 1.0, 0.0, 0.0);
+        }
     } else {
         color = interpolateColor(h);
         n = interpolateNormal(h);
@@ -530,14 +538,6 @@ vec4 trace(vec4 origin, vec4 dir)
         // Refletion speculaire
         dir = reflect(dir, N);
         origin = hit + 1000 * EPS * N;
-        
-        // Monte-Carlo
-        // Refletion uniform
-        // float phi = 2. * M_PI * hash12(hit.xy + 14.75 * fract(frame_index * 5945.269));
-        // float u = 2. * hash12(hit.zy + 27.43 * fract(frame_index * 1426.816)) - 1.;
-        // float root = sqrt(1. - u*u);
-        // dir = vec4(root*cos(phi), root*sin(phi), u, 0.);
-        // dir = dot(dir, N) > 0 ? dir : -dir;
         
         // Refraction / transparence
         float etaMoy = (etaReal.r+etaReal.g+etaReal.b)/3.;
@@ -697,3 +697,40 @@ void main(void) {
     imageStore(variancebuffer, pix, nextVariance);
     imageStore(framebuffer, pix, nextColor);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // Monte-Carlo
+        // Refletion uniform
+        // float phi = 2. * M_PI * hash12(hit.xy + 14.75 * fract(frame_index * 5945.269));
+        // float u = 2. * hash12(hit.zy + 27.43 * fract(frame_index * 1426.816)) - 1.;
+        // float root = sqrt(1. - u*u);
+        // dir = vec4(root*cos(phi), root*sin(phi), u, 0.);
+        // dir = dot(dir, N) > 0 ? dir : -dir;
