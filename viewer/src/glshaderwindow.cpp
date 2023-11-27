@@ -45,8 +45,8 @@ glShaderWindow::glShaderWindow(QWindow *parent)
 
     timer = startTimer(200);
 
-    halton2 = halton_sequence(2, HALTON_SIZE);
-    halton3 = halton_sequence(3, HALTON_SIZE);
+    // halton2 = halton_sequence(2, HALTON_SIZE);
+    // halton3 = halton_sequence(3, HALTON_SIZE);
 
     m_fragShaderSuffix << "*.frag" << "*.fs";
     m_vertShaderSuffix << "*.vert" << "*.vs";
@@ -1203,21 +1203,21 @@ void glShaderWindow::resetFrame()
     frame_index = 0;
 }
 
-std::vector<float> glShaderWindow::halton_sequence(int base, int size) {
-    std::vector<float> sequence(size);
-    for (int i = 1; i <= size; ++i) {
-        float value = 0;
-        float f = 1.0;
-        int j = i;
-        while (j > 0) {
-            f = f / base;
-            value = value + f * (j % base);
-            j = j / base;
-        }
-        sequence[i-1] = value;
-    }
-    return sequence;
-}
+// std::vector<float> glShaderWindow::halton_sequence(int base, int size) {
+//     std::vector<float> sequence(size);
+//     for (int i = 1; i <= size; ++i) {
+//         float value = 0;
+//         float f = 1.0;
+//         int j = i;
+//         while (j > 0) {
+//             f = f / base;
+//             value = value + f * (j % base);
+//             j = j / base;
+//         }
+//         sequence[i-1] = value;
+//     }
+//     return sequence;
+// }
 
 void glShaderWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_R) {
@@ -1277,8 +1277,8 @@ void glShaderWindow::render()
         compute_program->setUniformValue("etaReal", QVector3D(etaReal[0], etaReal[1], etaReal[2]));
         compute_program->setUniformValue("etaImag", QVector3D(etaImag[0], etaImag[1], etaImag[2]));
         compute_program->setUniformValue("frame_index", frame_index);
-        compute_program->setUniformValueArray("halton2", halton2.data(), halton2.size(), 1);
-        compute_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
+        // compute_program->setUniformValueArray("halton2", halton2.data(), halton2.size(), 1);
+        // compute_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
         compute_program->setUniformValue("gammaCorrection", gammaCorrection);
         compute_program->setUniformValue("useNormalMap", useNormalMap);
         compute_program->setUniformValue("framebuffer", 2);
@@ -1349,8 +1349,8 @@ void glShaderWindow::render()
     m_program->setUniformValue("etaReal", QVector3D(etaReal[0], etaReal[1], etaReal[2]));
     m_program->setUniformValue("etaImag", QVector3D(etaImag[0], etaImag[1], etaImag[2]));
     m_program->setUniformValue("frame_index", frame_index);
-    m_program->setUniformValueArray("halton2", halton2.data(), halton2.size(), 1);
-    m_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
+    // m_program->setUniformValueArray("halton2", halton2.data(), halton2.size(), 1);
+    // m_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
     m_program->setUniformValue("gammaCorrection", gammaCorrection);
     m_program->setUniformValue("useNormapMap", useNormalMap);
     m_program->setUniformValue("radius", modelMesh->bsphere.r);

@@ -123,11 +123,11 @@ private:
 
     int timer;
 
-    std::vector<float> halton_sequence(int base, int size);
+    // std::vector<float> halton_sequence(int base, int size);
 
-    const int HALTON_SIZE = 256;
-    std::vector<float> halton2;
-    std::vector<float> halton3;
+    // const int HALTON_SIZE = 256;
+    // std::vector<float> halton2;
+    // std::vector<float> halton3;
 
     // OpenGL variables encapsulated by Qt
     QOpenGLShaderProgram *m_program;
