@@ -19,6 +19,8 @@
 #include <QDebug>
 #include <assert.h>
 
+#include <cmath>
+
 #include <QTime>
 
 #include "perlinNoise.h" // defines tables for Perlin Noise
@@ -33,8 +35,8 @@ glShaderWindow::glShaderWindow(QWindow *parent)
       g_vertices(0), g_normals(0), g_texcoords(0), g_colors(0), g_indices(0),
       gpgpu_vertices(0), gpgpu_normals(0), gpgpu_texcoords(0), gpgpu_colors(0), gpgpu_indices(0),
       environmentMap(0), texture(0), textureNormal(0), useNormalMap(false), permTexture(0), pixels(0), mouseButton(Qt::NoButton), auxWidget(0),
-      isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(true), etaReal({1.5, 1.5, 1.5}), etaImag({0., 0., 0.}), lightIntensity({1., 1., 1.}), shininess(50.0f), lightDistance(5.0f), groundDistance(0.78),
-      shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), computeResult(0), gammaCorrection(false),
+      isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(true), etaReal({1.5, 1.5, 1.5}), etaImag({0., 0., 0.}), lightIntensity({1., 1., 1.}), lightIntensityHSV({0., 0., 1.}), shininess(50.0f), lightDistance(5.0f), groundDistance(0.78),
+      shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), computeResult(0), gammaCorrection(false), participatingEnv(false), maxTrace(7),
       m_indexBuffer(QOpenGLBuffer::IndexBuffer), ground_indexBuffer(QOpenGLBuffer::IndexBuffer)
 {
     // Default values you might want to tinker with
@@ -229,23 +231,49 @@ void glShaderWindow::opaqueClicked()
     renderNow();
 }
 
-void glShaderWindow::updateLightIntensityR(double lightValueR)
+void glShaderWindow::hsvToRGB(float* hsv, float* rgb)
 {
-    lightIntensity[0] = lightValueR;
+    int i = static_cast<int>(std::floor(hsv[0] / 60));
+    float c = hsv[2] * hsv[1];
+    float x = c * (1 - std::abs(std::fmod((hsv[0] / 60.0), 2.0) - 1.));
+    float m = hsv[2] - c;
+
+    float rgbprime[3];
+
+    switch (i % 6) {
+        case 0: rgbprime[0] = c; rgbprime[1] = x; rgbprime[2] = 0; break;
+        case 1: rgbprime[0] = x; rgbprime[1] = c; rgbprime[2] = 0; break;
+        case 2: rgbprime[0] = 0; rgbprime[1] = c; rgbprime[2] = x; break;
+        case 3: rgbprime[0] = 0; rgbprime[1] = x; rgbprime[2] = c; break;
+        case 4: rgbprime[0] = x; rgbprime[1] = 0; rgbprime[2] = c; break;
+        case 5: rgbprime[0] = c; rgbprime[1] = 0; rgbprime[2] = x; break;
+    }
+
+    rgb[0] = rgbprime[0] + m;
+    rgb[1] = rgbprime[1] + m;
+    rgb[2] = rgbprime[2] + m;
+}
+
+void glShaderWindow::updateLightIntensityH(double lightValueH)
+{
+    lightIntensityHSV[0] = lightValueH;
+    hsvToRGB(lightIntensityHSV, lightIntensity);
     resetFrame();
     renderNow();
 }
 
-void glShaderWindow::updateLightIntensityG(double lightValueG)
+void glShaderWindow::updateLightIntensityS(double lightValueS)
 {
-    lightIntensity[1] = lightValueG;
+    lightIntensityHSV[1] = lightValueS;
+    hsvToRGB(lightIntensityHSV, lightIntensity);
     resetFrame();
     renderNow();
 }
 
-void glShaderWindow::updateLightIntensityB(double lightValueB)
+void glShaderWindow::updateLightIntensityV(double lightValueV)
 {
-    lightIntensity[2] = lightValueB;
+    lightIntensityHSV[2] = lightValueV;
+    hsvToRGB(lightIntensityHSV, lightIntensity);
     resetFrame();
     renderNow();
 }
@@ -320,6 +348,24 @@ void glShaderWindow::updateUseNormalMap(int state)
     renderNow();
 }
 
+void glShaderWindow::updateParticipatingEnv(int state)
+{
+    if (state == Qt::Checked) {
+        participatingEnv = true;
+    } else {
+        participatingEnv = false;
+    }
+    resetFrame();
+    renderNow();
+}
+
+void glShaderWindow::updateMaxTrace(int maxTr)
+{
+    maxTrace = maxTr;
+    resetFrame();
+    renderNow();
+}
+
 
 QWidget *glShaderWindow::makeAuxWindow()
 {
@@ -329,15 +375,45 @@ QWidget *glShaderWindow::makeAuxWindow()
 
     QVBoxLayout *outer = new QVBoxLayout;
 
-    QCheckBox* gammaCorrectionCheckbox = new QCheckBox("Apply Gamma Correction");
+    QHBoxLayout* checkboxAndSliderLayout = new QHBoxLayout;
+
+    QVBoxLayout* checkboxLayout = new QVBoxLayout;
+
+    QCheckBox* gammaCorrectionCheckbox = new QCheckBox("Gamma Correction");
     gammaCorrectionCheckbox->setChecked(gammaCorrection);
     connect(gammaCorrectionCheckbox, SIGNAL(stateChanged(int)), this, SLOT(updateGammaCorrection(int)));
-    outer->addWidget(gammaCorrectionCheckbox);
+    checkboxLayout->addWidget(gammaCorrectionCheckbox);
 
     QCheckBox* useNormalMapCheckBox = new QCheckBox("Use Normal Map");
     useNormalMapCheckBox->setChecked(useNormalMap);
     connect(useNormalMapCheckBox, SIGNAL(stateChanged(int)), this, SLOT(updateUseNormalMap(int)));
-    outer->addWidget(useNormalMapCheckBox);
+    checkboxLayout->addWidget(useNormalMapCheckBox);
+
+    QCheckBox* participatingEnvMapCheckBox = new QCheckBox("Sous l'ocean");
+    participatingEnvMapCheckBox->setChecked(participatingEnv);
+    connect(participatingEnvMapCheckBox, SIGNAL(stateChanged(int)), this, SLOT(updateParticipatingEnv(int)));
+    checkboxLayout->addWidget(participatingEnvMapCheckBox);
+
+    checkboxAndSliderLayout->addLayout(checkboxLayout);
+
+    QSlider* maxTraceSlider = new QSlider(Qt::Vertical);
+    maxTraceSlider->setTickPosition(QSlider::TicksBelow);
+    maxTraceSlider->setMinimum(0);
+    maxTraceSlider->setMaximum(20);
+    maxTraceSlider->setSliderPosition(maxTrace);
+    connect(maxTraceSlider,SIGNAL(valueChanged(int)),this,SLOT(updateMaxTrace(int)));
+    QLabel* maxTraceLabel = new QLabel("Max Trace = ");
+    QLabel* maxTraceLabelValue = new QLabel();
+    maxTraceLabelValue->setNum(maxTrace);
+    connect(maxTraceSlider,SIGNAL(valueChanged(int)),maxTraceLabelValue,SLOT(setNum(int)));
+    QHBoxLayout *hboxMaxTrace = new QHBoxLayout;
+    hboxMaxTrace->addWidget(maxTraceLabel);
+    hboxMaxTrace->addWidget(maxTraceLabelValue);
+    hboxMaxTrace->addWidget(maxTraceSlider);
+
+    checkboxAndSliderLayout->addLayout(hboxMaxTrace);
+
+    outer->addLayout(checkboxAndSliderLayout);
 
     QHBoxLayout *buttons = new QHBoxLayout;
 
@@ -373,22 +449,22 @@ QWidget *glShaderWindow::makeAuxWindow()
     QDoubleSpinBox* lightSpinBoxR = new QDoubleSpinBox();
     QDoubleSpinBox* lightSpinBoxG = new QDoubleSpinBox();
     QDoubleSpinBox* lightSpinBoxB = new QDoubleSpinBox();
-    lightSpinBoxR->setValue(lightIntensity[0]);
-    lightSpinBoxG->setValue(lightIntensity[1]);
-    lightSpinBoxB->setValue(lightIntensity[2]);
-    lightSpinBoxR->setRange(0, 2);
-    lightSpinBoxG->setRange(0, 2);
-    lightSpinBoxB->setRange(0, 2);
-    lightSpinBoxR->setSingleStep(0.05);
+    lightSpinBoxR->setValue(lightIntensityHSV[0]);
+    lightSpinBoxG->setValue(lightIntensityHSV[1]);
+    lightSpinBoxB->setValue(lightIntensityHSV[2]);
+    lightSpinBoxR->setRange(0, 360);
+    lightSpinBoxG->setRange(0, 1);
+    lightSpinBoxB->setRange(0, 20);
+    lightSpinBoxR->setSingleStep(1);
     lightSpinBoxG->setSingleStep(0.05);
-    lightSpinBoxB->setSingleStep(0.05);
-    connect(lightSpinBoxR, SIGNAL(valueChanged(double)), this, SLOT(updateLightIntensityR(double)));
-    connect(lightSpinBoxG, SIGNAL(valueChanged(double)), this, SLOT(updateLightIntensityG(double)));
-    connect(lightSpinBoxB, SIGNAL(valueChanged(double)), this, SLOT(updateLightIntensityB(double)));
+    lightSpinBoxB->setSingleStep(0.1);
+    connect(lightSpinBoxR, SIGNAL(valueChanged(double)), this, SLOT(updateLightIntensityH(double)));
+    connect(lightSpinBoxG, SIGNAL(valueChanged(double)), this, SLOT(updateLightIntensityS(double)));
+    connect(lightSpinBoxB, SIGNAL(valueChanged(double)), this, SLOT(updateLightIntensityV(double)));
     QHBoxLayout *hboxLightLabels = new QHBoxLayout;
-    QLabel* lightLabelR = new QLabel("R");
-    QLabel* lightLabelG = new QLabel("G");
-    QLabel* lightLabelB = new QLabel("B");
+    QLabel* lightLabelR = new QLabel("H");
+    QLabel* lightLabelG = new QLabel("S");
+    QLabel* lightLabelB = new QLabel("V");
     lightLabelR->setAlignment(Qt::AlignCenter);
     lightLabelG->setAlignment(Qt::AlignCenter);
     lightLabelB->setAlignment(Qt::AlignCenter);
@@ -1274,6 +1350,7 @@ void glShaderWindow::render()
         compute_program->setUniformValue("transparent", transparent);
         compute_program->setUniformValue("lightIntensity", QVector3D(lightIntensity[0], lightIntensity[1], lightIntensity[2]));
         compute_program->setUniformValue("shininess", shininess);
+        compute_program->setUniformValue("maxTrace", maxTrace);
         compute_program->setUniformValue("etaReal", QVector3D(etaReal[0], etaReal[1], etaReal[2]));
         compute_program->setUniformValue("etaImag", QVector3D(etaImag[0], etaImag[1], etaImag[2]));
         compute_program->setUniformValue("frame_index", frame_index);
@@ -1281,6 +1358,7 @@ void glShaderWindow::render()
         // compute_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
         compute_program->setUniformValue("gammaCorrection", gammaCorrection);
         compute_program->setUniformValue("useNormalMap", useNormalMap);
+        compute_program->setUniformValue("participatingEnv", participatingEnv);
         compute_program->setUniformValue("framebuffer", 2);
         compute_program->setUniformValue("variancebuffer", 3);
         compute_program->setUniformValue("colorTexture", 0);
@@ -1346,6 +1424,7 @@ void glShaderWindow::render()
     m_program->setUniformValue("transparent", transparent);
     m_program->setUniformValue("lightIntensity", QVector3D(lightIntensity[0], lightIntensity[1], lightIntensity[2]));
     m_program->setUniformValue("shininess", shininess);
+    m_program->setUniformValue("maxTrace", maxTrace);
     m_program->setUniformValue("etaReal", QVector3D(etaReal[0], etaReal[1], etaReal[2]));
     m_program->setUniformValue("etaImag", QVector3D(etaImag[0], etaImag[1], etaImag[2]));
     m_program->setUniformValue("frame_index", frame_index);
@@ -1353,6 +1432,7 @@ void glShaderWindow::render()
     // m_program->setUniformValueArray("halton3", halton3.data(), halton3.size(), 1);
     m_program->setUniformValue("gammaCorrection", gammaCorrection);
     m_program->setUniformValue("useNormapMap", useNormalMap);
+    m_program->setUniformValue("participatingEnv", participatingEnv);
     m_program->setUniformValue("radius", modelMesh->bsphere.r);
 	if (m_program->uniformLocation("colorTexture") != -1) m_program->setUniformValue("colorTexture", 0);
 	if (m_program->uniformLocation("normalMap") != -1) m_program->setUniformValue("normalMap", 4);

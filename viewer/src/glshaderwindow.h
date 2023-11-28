@@ -45,9 +45,9 @@ public slots:
     void blinnPhongClicked();
     void transparentClicked();
     void opaqueClicked();
-    void updateLightIntensityR(double lightValueR);
-    void updateLightIntensityG(double lightValueG);
-    void updateLightIntensityB(double lightValueB);
+    void updateLightIntensityH(double lightValueR);
+    void updateLightIntensityS(double lightValueG);
+    void updateLightIntensityV(double lightValueB);
     void updateShininess(int shininessSliderValue);
     void updateEtaRealR(double etaRealR);
     void updateEtaRealG(double etaRealG);
@@ -55,8 +55,10 @@ public slots:
     void updateEtaImagR(double etaImagR);
     void updateEtaImagG(double etaImagG);
     void updateEtaImagB(double etaImagB);
+    void updateMaxTrace(int maxTr);
     void updateGammaCorrection(int state);
     void updateUseNormalMap(int state);
+    void updateParticipatingEnv(int state);
 
 protected:
     void mousePressEvent(QMouseEvent *e);
@@ -77,6 +79,7 @@ private:
     void loadTexturesForShaders();
     void openScene();
     void resetFrame();
+    void hsvToRGB(float* hsv, float* rgb);
 
     // Are we using GPGPU?
     bool isGPGPU;
@@ -116,10 +119,13 @@ private:
     int frame_index = 0;
     bool gammaCorrection;
     bool useNormalMap;
+    bool participatingEnv;
     float lightIntensity[3];
+    float lightIntensityHSV[3];
     float shininess;
     float lightDistance;
     float groundDistance;
+    int maxTrace;
 
     int timer;
 
