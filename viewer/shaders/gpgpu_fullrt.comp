@@ -481,6 +481,26 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
     }
 }
 
+vec3 monteCarloDirection(vec4 normal){
+
+    int offset = int(gold_noise(vec2(gl_GlobalInvocationID.xy), 491.214) * HALTON_SIZE);
+    float theta = halton2[(frame_index + offset) % HALTON_SIZE]*2*M_PI;
+    float phi = acos(1-2*halton3[(frame_index + offset) % HALTON_SIZE]);
+
+    float rdX = sin(phi)*cos(theta);
+    float rdY = sin(phi)*sin(theta);
+    float rdZ = cos(phi);
+    
+    vec3 rdDir = vec3(rdX, rdY, rdZ);
+
+    if (dot(rdDir,normal.xyz) < 0){
+        rdDir = -rdDir;
+    }
+
+    return rdDir;
+
+}
+
 
 struct trace_state_t
 {
@@ -537,8 +557,11 @@ vec4 trace(vec4 origin, vec4 dir)
         stack[sp].N = N;
         stack[sp].inSurf = inSurf;
 
-        // Refletion speculaire
-        dir = reflect(dir, N);
+        //Monte-Carlo Path-Tracing
+        dir = vec4(monteCarloDirection(N), 0);
+
+        // Reflection speculaire
+        // dir = reflect(dir, N);
         origin = hit + 1000 * EPS * N;
         
         // Refraction / transparence
