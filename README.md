@@ -2,8 +2,8 @@
 
 #### Steps:
 * Must:
-    * Objet transparent (Félix - 80% done)
-    * Normal maps (Tom - 0% done)
+    * Objet transparent (Félix - 100% done)
+    * Normal maps (Tom - 100% done)
     * Monte-Carlo ray-tracing (Félix/Tom - lvl0 done)
 
 * Should:
