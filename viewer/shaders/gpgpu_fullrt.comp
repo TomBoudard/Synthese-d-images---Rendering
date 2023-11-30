@@ -28,11 +28,13 @@ uniform int frame_index;
 float halton2[HALTON_SIZE] = {0.5, 0.25, 0.75, 0.125, 0.625, 0.375, 0.875, 0.0625, 0.5625, 0.3125, 0.8125, 0.1875, 0.6875, 0.4375, 0.9375, 0.03125, 0.53125, 0.28125, 0.78125, 0.15625, 0.65625, 0.40625, 0.90625, 0.09375, 0.59375, 0.34375, 0.84375, 0.21875, 0.71875, 0.46875, 0.96875, 0.015625, 0.515625, 0.265625, 0.765625, 0.140625, 0.640625, 0.390625, 0.890625, 0.078125, 0.578125, 0.328125, 0.828125, 0.203125, 0.703125, 0.453125, 0.953125, 0.046875, 0.546875, 0.296875, 0.796875, 0.171875, 0.671875, 0.421875, 0.921875, 0.109375, 0.609375, 0.359375, 0.859375, 0.234375, 0.734375, 0.484375, 0.984375, 0.0078125, 0.5078125, 0.2578125, 0.7578125, 0.1328125, 0.6328125, 0.3828125, 0.8828125, 0.0703125, 0.5703125, 0.3203125, 0.8203125, 0.1953125, 0.6953125, 0.4453125, 0.9453125, 0.0390625, 0.5390625, 0.2890625, 0.7890625, 0.1640625, 0.6640625, 0.4140625, 0.9140625, 0.1015625, 0.6015625, 0.3515625, 0.8515625, 0.2265625, 0.7265625, 0.4765625, 0.9765625, 0.0234375, 0.5234375, 0.2734375, 0.7734375, 0.1484375, 0.6484375, 0.3984375, 0.8984375, 0.0859375, 0.5859375, 0.3359375, 0.8359375, 0.2109375, 0.7109375, 0.4609375, 0.9609375, 0.0546875, 0.5546875, 0.3046875, 0.8046875, 0.1796875, 0.6796875, 0.4296875, 0.9296875, 0.1171875, 0.6171875, 0.3671875, 0.8671875, 0.2421875, 0.7421875, 0.4921875, 0.9921875, 0.00390625};
 float halton3[HALTON_SIZE] = {0.3333333333333333, 0.6666666666666666, 0.1111111111111111, 0.4444444444444444, 0.7777777777777778, 0.2222222222222222, 0.5555555555555556, 0.8888888888888888, 0.037037037037037035, 0.37037037037037035, 0.7037037037037037, 0.14814814814814814, 0.48148148148148145, 0.8148148148148148, 0.25925925925925924, 0.5925925925925926, 0.9259259259259259, 0.07407407407407407, 0.4074074074074074, 0.7407407407407407, 0.18518518518518517, 0.5185185185185185, 0.8518518518518519, 0.2962962962962963, 0.6296296296296297, 0.9629629629629629, 0.012345679012345678, 0.345679012345679, 0.6790123456790124, 0.12345679012345678, 0.4567901234567901, 0.7901234567901234, 0.2345679012345679, 0.5679012345679012, 0.9012345679012346, 0.04938271604938271, 0.38271604938271603, 0.7160493827160493, 0.16049382716049382, 0.49382716049382713, 0.8271604938271605, 0.2716049382716049, 0.6049382716049383, 0.9382716049382716, 0.08641975308641975, 0.41975308641975306, 0.7530864197530864, 0.19753086419753085, 0.5308641975308642, 0.8641975308641975, 0.30864197530864196, 0.6419753086419753, 0.9753086419753086, 0.024691358024691357, 0.35802469135802467, 0.691358024691358, 0.13580246913580246, 0.4691358024691358, 0.8024691358024691, 0.24691358024691357, 0.5802469135802469, 0.9135802469135802, 0.06172839506172839, 0.3950617283950617, 0.7283950617283951, 0.1728395061728395, 0.5061728395061729, 0.8395061728395061, 0.2839506172839506, 0.6172839506172839, 0.9506172839506173, 0.09876543209876543, 0.43209876543209874, 0.7654320987654321, 0.20987654320987653, 0.5432098765432098, 0.8765432098765432, 0.32098765432098764, 0.654320987654321, 0.9876543209876543, 0.00411522633744856, 0.3374485596707819, 0.6707818930041153, 0.11522633744855967, 0.448559670781893, 0.7818930041152263, 0.22633744855967078, 0.5596707818930041, 0.8930041152263375, 0.0411522633744856, 0.37448559670781895, 0.7078189300411523, 0.1522633744855967, 0.48559670781893005, 0.8189300411522634, 0.26337448559670784, 0.5967078189300411, 0.9300411522633745, 0.07818930041152264, 0.411522633744856, 0.7448559670781894, 0.18930041152263374, 0.522633744855967, 0.8559670781893004, 0.3004115226337449, 0.6337448559670782, 0.9670781893004116, 0.01646090534979424, 0.3497942386831276, 0.6831275720164609, 0.12757201646090535, 0.4609053497942387, 0.7942386831275721, 0.23868312757201646, 0.5720164609053497, 0.9053497942386831, 0.053497942386831275, 0.3868312757201646, 0.720164609053498, 0.1646090534979424, 0.49794238683127573, 0.831275720164609, 0.2757201646090535, 0.6090534979423868, 0.9423868312757202, 0.09053497942386832, 0.42386831275720166, 0.757201646090535};
 
-#define MAX_SCENE_BOUNDS    10.0
+#define MAX_SCENE_BOUNDS    100.0
 #define EPS                 0.000001
 
 #define MIN_DISTANCE EPS
 #define GROUND_VPTR -1
+
+#define NB_SCATTER 10
 
 #define M_PI   3.14159265358979323846
 #define M_1_PI 0.31830988618
@@ -470,7 +472,7 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
     if (h.hit_vptr == GROUND_VPTR) {
         color = texture(colorTexture, h.t.pq);
         p.y = -groundDistance;
-        if (useNormalMap){
+        if (useNormalMap) {
             vec3 normal = 2*(texture(normalMap, h.t.pq).xyz) - 1.;
             n = normalize(vec4(normal.x, normal.z, -normal.y, 0.0));
         }
@@ -483,6 +485,35 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
     }
 }
 
+vec3 i0scatter(vec3 a, float va, float vb, float prec, int maxIter)
+{
+    vec3 ro_va = sqrt(a*a*(va*va+1.));
+    vec3 ro_vb = sqrt(a*a*(vb*vb+1.));
+    vec3 phi_va = atan(a,a*va);
+    vec3 phi_vb = atan(a,a*vb);
+    vec3 sin_a = sin(a);
+    vec3 cos_a = cos(a);
+    vec3 log_v = log(ro_vb/ro_va);
+    vec3 phi_v = phi_vb - phi_va;
+    vec3 I0 = sin_a * log_v - cos_a * phi_v;
+    float kfac = 1.;
+    vec3 ro_va_k = vec3(1.);
+    vec3 ro_vb_k = vec3(1.);
+
+    for (int k = 1; k <= 15; k++) {
+        kfac *= (k + 0.);
+        ro_va_k *= ro_va;
+        ro_vb_k *= ro_vb;
+        vec3 phi_kva = a - k*phi_va;
+        vec3 phi_kvb = a - k*phi_va;
+        float denom = 1./(k*kfac);
+        vec3 diff = (ro_vb_k*sin(phi_kvb) - ro_va_k * sin(phi_kva)) / denom;
+        I0 += diff;
+        if (length(diff) < prec) break;
+    }
+    return I0;
+    
+}
 
 struct trace_state_t
 {
@@ -541,14 +572,14 @@ vec4 trace(vec4 origin, vec4 dir)
 
         // Monte-Carlo
         // Refletion uniform
-        float phi = 2. * M_PI * hash12(hit.xy + 14.75 * fract(frame_index * 5945.269));
-        float u = 2. * hash12(hit.zy + 27.43 * fract(frame_index * 1426.816)) - 1.;
-        float root = sqrt(1. - u*u);
-        dir = vec4(root*cos(phi), root*sin(phi), u, 0.);
-        dir = dot(dir, N) > 0 ? dir : -dir;
+        // float phi = 2. * M_PI * hash12(hit.xy + 14.75 * fract(frame_index * 5945.269));
+        // float u = 2. * hash12(hit.zy + 27.43 * fract(frame_index * 1426.816)) - 1.;
+        // float root = sqrt(1. - u*u);
+        // dir = vec4(root*cos(phi), root*sin(phi), u, 0.);
+        // dir = dot(dir, N) > 0 ? dir : -dir;
 
         // Refletion speculaire
-        // dir = reflect(dir, N);
+        dir = reflect(dir, N);
         origin = hit + 1000 * EPS * N;
         
         // Refraction / transparence
@@ -576,6 +607,23 @@ vec4 trace(vec4 origin, vec4 dir)
     vec2 envCoord = vec2(atan(dir.x, dir.z)*M_1_PI*0.5+0.5, 1.-acos(dir.y)*M_1_PI);
     vec4 color = vec4(0.);
     // vec4 color = texture(envMap, envCoord);
+
+    vec3 coefAbso = vec3(0.6, 0.05, 0.01);
+    vec3 coefScatter = vec3(0.015, 0.003, 0.001);
+
+    // if (participatingEnv) {
+    //     vec3 scatColor = vec3(0);
+    //     for (int i = 0; i < NB_SCATTER; i++) {
+    //         float t = (i + 1.) / (NB_SCATTER + 1);
+    //         vec4 scatPos = (1. - t) * origin + t * (origin + radius * MAX_SCENE_BOUNDS * dir);
+    //         float shadow = isIntersected(scatPos, vec4(lightPosition, 1.) - scatPos) ? 0. : 1.;
+    //         float depth = length(origin - scatPos) + length(scatPos - vec4(lightPosition, 1.));
+    //         vec3 scatAbsoCoef = exp(-(coefAbso+coefScatter)*depth);
+    //         scatColor += coefScatter * scatAbsoCoef * lightIntensity * (0.25 * M_1_PI);
+    //     }
+    //     float coef = useNormalMap ? 1. : 0.;
+    //     color = vec4(coef * scatColor, 1.);
+    // }
 
     while (sp > 0) {
         sp -= 1;
@@ -615,16 +663,35 @@ vec4 trace(vec4 origin, vec4 dir)
 
         // On fait du brouillard
         // http://www.sci.utah.edu/publications/pegoraro09/Pegoraro_CGF09.pdf
-        vec3 coefExp = vec3(0.6, 0.05, 0.01) * 0.25;
 
         float d = length(stack[sp].origin - stack[sp].hit);
-        vec3 absoCoef = stack[sp].inSurf ? vec3(1.) : exp(-coefExp*d);
+        vec3 absoCoef = stack[sp].inSurf ? vec3(1.) : exp(-(coefAbso+coefScatter)*d);
         absoCoef = participatingEnv ? absoCoef : vec3(1.);
         float dbis = length(lightPosition - stack[sp].hit.xyz);
-        vec3 absoCoefL = stack[sp].inSurf ? vec3(1.) : exp(-coefExp*dbis);
+        vec3 absoCoefL = stack[sp].inSurf ? vec3(1.) : exp(-(coefAbso+coefScatter)*dbis);
         absoCoefL = participatingEnv ? absoCoefL : vec3(1.);
 
-        color = vec4((dirCol.rgb * absoCoefL + indCol.rgb) * absoCoef, 1.);
+        vec3 scatColor = vec3(0);
+        if (participatingEnv) {
+            // for (int i = 0; i < NB_SCATTER; i++) {
+            //     float t = (i + 1.) / (NB_SCATTER + 1);
+            //     vec4 scatPos = (1. - t) * stack[sp].origin + t * stack[sp].hit;
+            //     float shadow = isIntersected(scatPos, vec4(lightPosition, 1.) - scatPos) ? 0. : 1.;
+            //     float depth = length(stack[sp].origin - scatPos) + length(scatPos - vec4(lightPosition, 1.));
+            //     vec3 scatAbsoCoef = stack[sp].inSurf ? vec3(0.) : exp(-(coefAbso+coefScatter)*depth);
+            //     scatColor += coefScatter * scatAbsoCoef * lightIntensity * (0.25 * M_1_PI);
+            // }
+
+            vec3 lightVec = lightPosition - stack[sp].origin.xyz;
+            float rayLength = length(stack[sp].hit - stack[sp].origin);
+            float h = length(lightVec - dot(lightVec, stack[sp].dir.xyz) * stack[sp].dir.xyz);
+            vec3 xh = stack[sp].origin.xyz + dot(lightVec, stack[sp].dir.xyz) * stack[sp].dir.xyz;
+            vec3 va = (length((stack[sp].origin.xyz-xh)) / h) + sqrt(1. + (dot((stack[sp].origin.xyz-xh), (stack[sp].origin.xyz-xh)))/(h*h));
+            vec3 vb = (length((stack[sp].hit.xyz-xh)) / h) + sqrt(1. + (dot((stack[sp].hit.xyz-xh), (stack[sp].origin.hit-xh)))/(h*h));
+            vec3 I0 = i0scatter(-(coefScatter + coefAbso)*h, va, vb, 0.1, 20);
+            scatColor = lightIntensity * (coefScatter / h) * exp((coefScatter + coefAbso) * length(stack[sp].origin.xyz-xh)) * (0.5 * M_1_PI) * I0; 
+        }
+        color = vec4(scatColor, 1.); //vec4((dirCol.rgb * absoCoefL + indCol.rgb + scatColor) * absoCoef, 1.);
 
         // color = vec4(vec3(d) / 40., 1);
         stack[sp].color = color;
@@ -684,7 +751,7 @@ void main(void) {
 
     // if (color.r > 1. || color.g > 1. || color.b > 1.) color = vec4(1, 0, 1, 1);
 
-    // if (isnan(color.x)) color = vec4(1, 1, 0, 1);
+    if (isnan(color.x)) color = vec4(1, 1, 1, 1);
 
     // color = vec4(rd_x+0.5, rd_y+0.5, 0, 1);
 
@@ -698,14 +765,14 @@ void main(void) {
     // }
 
     // halton point visualization
-    // vec2 range = vec2(32, 12);
-    // vec2 origi = vec2(6, -4);
+    // vec2 range = vec2(1, 1);
+    // vec2 origi = vec2(0, 0);
     // vec2 uv = range * pix / size + origi;
     // nextColor = vec4(0, 0, 0, 1);
-    // float threshold = 0.005;
+    // float threshold = 0.0025;
     // for (int i = 0; i < HALTON_SIZE; i++) {
     //     if (abs(halton2[i] - uv.x) < threshold && abs(halton3[i] - uv.y) < threshold) {
-    //         nextColor = vec4(1, 1, 1, 1);
+    //         nextColor = vec4(vec3(1.), 1);
     //     }
     // }
     // vec2 pas = range / size;
