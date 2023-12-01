@@ -35,7 +35,7 @@ glShaderWindow::glShaderWindow(QWindow *parent)
       g_vertices(0), g_normals(0), g_texcoords(0), g_colors(0), g_indices(0),
       gpgpu_vertices(0), gpgpu_normals(0), gpgpu_texcoords(0), gpgpu_colors(0), gpgpu_indices(0),
       environmentMap(0), texture(0), textureNormal(0), useNormalMap(false), permTexture(0), pixels(0), mouseButton(Qt::NoButton), auxWidget(0),
-      isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(true), etaReal({1.5, 1.5, 1.5}), etaImag({0., 0., 0.}), lightIntensity({1., 1., 1.}), lightIntensityHSV({0., 0., 1.}), shininess(50.0f), lightDistance(5.0f), groundDistance(0.78),
+      isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(false), etaReal({1.5, 1.5, 1.5}), etaImag({0., 0., 0.}), lightIntensity({1., 1., 1.}), lightIntensityHSV({0., 0., 1.}), shininess(50.0f), lightDistance(5.0f), groundDistance(0.78),
       shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), computeResult(0), gammaCorrection(false), participatingEnv(false), maxTrace(7),
       m_indexBuffer(QOpenGLBuffer::IndexBuffer), ground_indexBuffer(QOpenGLBuffer::IndexBuffer)
 {
