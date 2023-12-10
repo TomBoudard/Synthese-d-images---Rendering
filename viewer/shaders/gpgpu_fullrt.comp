@@ -42,6 +42,9 @@ float halton3[HALTON_SIZE] = {0.3333333333333333, 0.6666666666666666, 0.11111111
 #define Ka 0.05
 #define Kd 0.3
 
+#define coefAbso vec3(0.3, 0.025, 0.005)
+#define coefScatter vec3(0.15, 0.03, 0.01)
+
 struct hitinfo_t {
     /* Index of the first index of the triangle */
     /* or: GROUND_VPTR */
@@ -170,6 +173,11 @@ bool intersectTriangle(vec4 origin, vec4 dir, int ptr, out vec4 dist, bool rever
     if (dist.w < 0.0) return false;
     dist.x = dot(e2, q);
     dist /= det;
+    if (reverse) {
+        float temp = dist.y;
+        dist.y = dist.z;
+        dist.z = temp;
+    }
     return (dist.x > EPS);
 }
 
@@ -209,7 +217,6 @@ vec4 interpolateNormal(hitinfo_t h)
         vec4 n0 = normals[indices[h.hit_vptr]];
         vec4 n1 = normals[indices[h.hit_vptr + 1]];
         vec4 n2 = normals[indices[h.hit_vptr + 2]];
-
         return normalize(h.t.w * n0 + h.t.y * n1 + h.t.z * n2);
 
     } else {
@@ -502,34 +509,19 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
     }
 }
 
-vec3 i0scatter(vec3 a, float va, float vb, float prec, int maxIter)
-{
-    vec3 ro_va = sqrt(a*a*(va*va+1.));
-    vec3 ro_vb = sqrt(a*a*(vb*vb+1.));
-    vec3 phi_va = atan(a,a*va);
-    vec3 phi_vb = atan(a,a*vb);
-    vec3 sin_a = sin(a);
-    vec3 cos_a = cos(a);
-    vec3 log_v = log(ro_vb/ro_va);
-    vec3 phi_v = phi_vb - phi_va;
-    vec3 I0 = sin_a * log_v - cos_a * phi_v;
-    float kfac = 1.;
-    vec3 ro_va_k = vec3(1.);
-    vec3 ro_vb_k = vec3(1.);
 
-    for (int k = 1; k <= 15; k++) {
-        kfac *= (k + 0.);
-        ro_va_k *= ro_va;
-        ro_vb_k *= ro_vb;
-        vec3 phi_kva = a - k*phi_va;
-        vec3 phi_kvb = a - k*phi_va;
-        float denom = 1./(k*kfac);
-        vec3 diff = (ro_vb_k*sin(phi_kvb) - ro_va_k * sin(phi_kva)) / denom;
-        I0 += diff;
-        if (length(diff) < prec) break;
+vec3 scatteredLight(vec4 origin, vec4 hit, bool inSurf) {
+    vec3 scatColor = vec3(0.);
+    float step = length(hit - origin) / NB_SCATTER;
+    for (int i = 0; i < NB_SCATTER; i++) {
+        float t = (i + 1.) / (NB_SCATTER + 1);
+        vec4 scatPos = (1. - t) * origin + t * hit;
+        // float shadow = isIntersected(scatPos, vec4(lightPosition, 1.) - scatPos) ? 0. : 1.;
+        float depth = length(origin - scatPos) + length(scatPos - vec4(lightPosition, 1.));
+        vec3 scatAbsoCoef = inSurf ? vec3(0.) : exp(-(coefAbso+coefScatter)*depth);
+        scatColor += coefScatter * scatAbsoCoef * lightIntensity * step;
     }
-    return I0;
-    
+    return scatColor;
 }
 
 vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
@@ -643,7 +635,7 @@ vec4 trace(vec4 origin, vec4 dir)
     while (sp < maxTrace + 1 && fallback[sp]) {
         
         getLocal(origin, dir, hl, localColor, hit, N);
-        
+
         stack[sp].origin = origin;
         stack[sp].dir = dir;
         stack[sp].localColor = localColor;
@@ -667,8 +659,8 @@ vec4 trace(vec4 origin, vec4 dir)
         dir = monteCarloDirection(stack[sp].N, dir, probability);
 
         // Reflection speculaire
-        // dir = reflect(dir, stack[sp].N);
-        origin = hit + 1000 * EPS * stack[sp].N;
+        dir = reflect(dir, stack[sp].N);
+        origin = hit + 1000 * EPS * dir; //stack[sp].N;
         
         // Refraction / transparence
         float etaMoy = (etaReal.r+etaReal.g+etaReal.b)/3.;
@@ -677,7 +669,7 @@ vec4 trace(vec4 origin, vec4 dir)
         
         // vec4 trans = stack[sp].dir;
         vec4 trans = refract(stack[sp].dir, stack[sp].N, 1./etaSurf);
-        vec4 transOri = hit - 1000 * EPS * stack[sp].N;
+        vec4 transOri = hit - 1000 * EPS * trans; //stack[sp].N;
 
         bool test = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
         
@@ -694,34 +686,13 @@ vec4 trace(vec4 origin, vec4 dir)
         sp += 1;
         fallback[sp] = firstIntersection(origin, dir, hl, inSurf);
     }
-    // if (nbTrans > 0.5 && nbTrans < 1.5) return vec4(1, 0, 0, 1);
-    // if (nbTrans > 1.5 && nbTrans < 2.5) return vec4(0, 1, 0, 1);
-    // if (nbTrans > 2.5 && nbTrans < 3.5) return vec4(0, 0, 1, 1);
-    // if (nbTrans > 3.5 && nbTrans < 4.5) return vec4(1, 0, 1, 1);
-    // if (nbTrans > 4.5 && nbTrans < 5.5) return vec4(0, 1, 1, 1);
-    // if (nbTrans > 5.5 && nbTrans < 6.5) return vec4(1, 1, 0, 1);
-    // return vec4(1, 1, 1, 1);
 
     vec2 envCoord = vec2(atan(dir.x, dir.z)*M_1_PI*0.5+0.5, 1.-acos(dir.y)*M_1_PI);
     vec4 color = vec4(0.);
     // vec4 color = texture(envMap, envCoord);
 
-    vec3 coefAbso = vec3(0.6, 0.05, 0.01);
-    vec3 coefScatter = vec3(0.015, 0.003, 0.001) * 50;
-
     if (participatingEnv) {
-        vec3 scatColor = vec3(0);
-        float step = hl.t.x / NB_SCATTER;
-        for (int i = 0; i < NB_SCATTER; i++) {
-            float t = (i + 1.) / (NB_SCATTER + 1);
-            vec4 scatPos = (1. - t) * origin + t * (origin + hl.t.x * dir);
-            // float shadow = isIntersected(scatPos, vec4(lightPosition, 1.) - scatPos) ? 0. : 1.;
-            float depth = length(origin - scatPos) + length(scatPos - vec4(lightPosition, 1.));
-            vec3 scatAbsoCoef = exp(-(coefAbso+coefScatter)*depth);
-            scatColor += coefScatter * scatAbsoCoef * lightIntensity * step; // * (0.25 * M_1_PI);
-        }
-        color = vec4(scatColor, 1.);
-        // color = vec4(vec3(hl.t.x) / 1000., 1);
+        color = vec4(scatteredLight(origin, (origin + hl.t.x * dir), inSurf), 1.);
     }
 
     while (sp > 0) {
@@ -768,31 +739,15 @@ vec4 trace(vec4 origin, vec4 dir)
         float d = length(stack[sp].origin - stack[sp].hit);
         vec3 absoCoef = stack[sp].inSurf ? vec3(1.) : exp(-(coefAbso+coefScatter)*d);
         absoCoef = participatingEnv ? absoCoef : vec3(1.);
+        // absoCoef = vec3(1.);
         float dbis = length(lightPosition - stack[sp].hit.xyz);
         vec3 absoCoefL = stack[sp].inSurf ? vec3(1.) : exp(-(coefAbso+coefScatter)*dbis);
         absoCoefL = participatingEnv ? absoCoefL : vec3(1.);
+        // absoCoefL = vec3(1.);
 
         vec3 scatColor = vec3(0);
         if (participatingEnv) {
-            // Integral by some
-            float step = length(stack[sp].hit - stack[sp].origin) / NB_SCATTER;
-            for (int i = 0; i < NB_SCATTER; i++) {
-                float t = (i + 1.) / (NB_SCATTER + 1);
-                vec4 scatPos = (1. - t) * stack[sp].origin + t * stack[sp].hit;
-                // float shadow = isIntersected(scatPos, vec4(lightPosition, 1.) - scatPos) ? 0. : 1.;
-                float depth = length(stack[sp].origin - scatPos) + length(scatPos - vec4(lightPosition, 1.));
-                vec3 scatAbsoCoef = stack[sp].inSurf ? vec3(0.) : exp(-(coefAbso+coefScatter)*depth);
-                scatColor += coefScatter * scatAbsoCoef * lightIntensity * step; // * (0.25 * M_1_PI);
-            }
-
-            // Integral by calculus
-            // vec3 lightVec = lightPosition - stack[sp].origin.xyz;
-            // float h = length(lightVec - dot(lightVec, stack[sp].dir.xyz) * stack[sp].dir.xyz);
-            // vec3 xh = stack[sp].origin.xyz + dot(lightVec, stack[sp].dir.xyz) * stack[sp].dir.xyz;
-            // float va = (length(stack[sp].origin.xyz-xh) / h) + sqrt(1. + (dot(stack[sp].origin.xyz-xh, stack[sp].origin.xyz-xh))/(h*h));
-            // float vb = (length(stack[sp].hit.xyz-xh) / h) + sqrt(1. + (dot(stack[sp].hit.xyz-xh, stack[sp].hit.xyz-xh))/(h*h));
-            // vec3 I0 = vec3(1.); //i0scatter(-(coefScatter + coefAbso)*h, va, vb, 0.1, 20);
-            // scatColor = lightIntensity * (coefScatter / h) * exp((coefScatter + coefAbso) * length(stack[sp].origin.xyz-xh)) * (0.5 * M_1_PI) * I0; 
+            scatColor = scatteredLight(stack[sp].origin, stack[sp].hit, inSurf);
         }
         color = vec4((dirCol.rgb * absoCoefL + indCol.rgb) * absoCoef + scatColor, 1.);
 
