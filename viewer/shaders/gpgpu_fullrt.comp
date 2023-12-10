@@ -659,7 +659,7 @@ vec4 trace(vec4 origin, vec4 dir)
         dir = monteCarloDirection(stack[sp].N, dir, probability);
 
         // Reflection speculaire
-        dir = reflect(dir, stack[sp].N);
+        // dir = reflect(dir, stack[sp].N);
         origin = hit + 1000 * EPS * dir; //stack[sp].N;
         
         // Refraction / transparence
