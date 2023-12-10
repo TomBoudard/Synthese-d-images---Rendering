@@ -420,6 +420,11 @@ vec4 fresnel(float cos_theta, vec3 etaReal, vec3 etaImag) {
     return vec4(min(vec3(1), (Fs + Fp) / 2.), 1.);
 }
 
+float PhongDistribution(float cos_theta, float alpha) {
+    if (cos_theta <= 0.) return 0.;
+    return pow(cos_theta, alpha)*(alpha + 2.)/(2*M_PI);
+}
+
 float GGXMicroFacetDistribution(float cos_theta, float alpha) {
     if (cos_theta <= 0.) return 0.;
     float tan_theta_2 = (1. - cos_theta * cos_theta) / (cos_theta * cos_theta);
@@ -550,6 +555,8 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
             rdDir = -rdDir;
         }
 
+        probability = 1.;
+
         return rdDir;
         
     }
@@ -558,9 +565,9 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
         float phi = 2*M_PI*u1;
         float theta;
         if (blinnPhong){
-            theta = acos(pow(u1, 1/(shininess+2)));
+            theta = acos(pow(u2, 1/(shininess+2)));
 
-            probability = 1; //FIXME
+            probability = PhongDistribution(cos(theta), shininess);
         }
         else{
             float alpha = map(shininess, 0, 200, 0.5, 0.0);
@@ -581,6 +588,10 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
 
         return reflect(dir, rdNormal);
     }
+}
+
+void testout(out float truc){
+    truc = 0.999324;
 }
 
 struct trace_state_t
@@ -609,7 +620,7 @@ vec4 trace(vec4 origin, vec4 dir)
     vec4 hit;
     vec4 localColor;
     vec4 N;
-    float probability;
+    float probability = 1.;
 
     float specular_factor, LdN;
 
@@ -641,7 +652,7 @@ vec4 trace(vec4 origin, vec4 dir)
         stack[sp].Ld = normalize(vec4(lightPosition, 1.) - hit);
         stack[sp].N = sens * N;
         stack[sp].inSurf = inSurf;
-        // stack[sp].probability = probability;
+        stack[sp].probability = probability;
 
         // Monte-Carlo Felix
         // Refletion uniform
@@ -652,10 +663,11 @@ vec4 trace(vec4 origin, vec4 dir)
         // dir = dot(dir, stack[sp].N) > 0 ? dir : -dir;
 
         // Monte-Carlo Path-Tracing Tom
-        // dir = monteCarloDirection(stack[sp].N, dir, probability);
+        float testing;
+        dir = monteCarloDirection(stack[sp].N, dir, probability);
 
         // Reflection speculaire
-        dir = reflect(dir, stack[sp].N);
+        // dir = reflect(dir, stack[sp].N);
         origin = hit + 1000 * EPS * stack[sp].N;
         
         // Refraction / transparence
@@ -748,6 +760,8 @@ vec4 trace(vec4 origin, vec4 dir)
             shadowMask
         );
 
+        dirCol = vec4(dirCol.xyz/stack[sp].probability, 1.); // importance sampling
+
         // On fait du brouillard
         // http://www.sci.utah.edu/publications/pegoraro09/Pegoraro_CGF09.pdf
 
@@ -782,7 +796,7 @@ vec4 trace(vec4 origin, vec4 dir)
         }
         color = vec4((dirCol.rgb * absoCoefL + indCol.rgb) * absoCoef + scatColor, 1.);
 
-        // color /= stack[sp].probability; // importance sampling
+
 
         // color = vec4(vec3(d) / 1000., 1);
         // color = stack[sp].N;
