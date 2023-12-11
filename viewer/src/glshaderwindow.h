@@ -138,12 +138,14 @@ private:
     // OpenGL variables encapsulated by Qt
     QOpenGLShaderProgram *m_program;
     QOpenGLShaderProgram *ground_program;
+    QOpenGLShaderProgram *caustics_program;
     QOpenGLShaderProgram *compute_program;
     QOpenGLShaderProgram *shadowMapGenerationProgram;
     QOpenGLTexture* environmentMap;
     QOpenGLTexture* texture;
     QOpenGLTexture* textureNormal;
-    QOpenGLTexture* permTexture;   // for Perlin noise
+    QOpenGLTexture* permTexture;   // for Perlin 
+    QOpenGLTexture* causticsResult;
     QOpenGLTexture* computeResult; // output of compute shader
     // Model
     QOpenGLBuffer m_vertexBuffer;
