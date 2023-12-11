@@ -436,12 +436,12 @@ float PhongDistribution(float cos_theta, float alpha) {
 float GGXMicroFacetDistribution(float cos_theta, float alpha) {
     if (cos_theta <= 0.) return 0.;
     float tan_theta_2 = (1. - cos_theta * cos_theta) / (cos_theta * cos_theta);
-    return (alpha * alpha) / ((alpha * alpha + tan_theta_2) * (alpha * alpha + tan_theta_2)) * (M_1_PI / pow(cos_theta, 4.));
+    return ((alpha * alpha) / ((alpha * alpha + tan_theta_2) * (alpha * alpha + tan_theta_2))) * (M_1_PI / pow(cos_theta, 4.));
 }
 
 float GGXShadowMasking(float cos_theta, float alpha) {
     float sin_theta_2 = (1. - cos_theta * cos_theta);
-    return 1. / (cos_theta + pow(cos_theta * cos_theta + alpha * alpha * sin_theta_2, 1./2.));
+    return 2. / (1. + pow( 1. + alpha * alpha * sin_theta_2/(cos_theta*cos_theta), 1./2.));
 }
 
 float map(float value, float min1, float max1, float min2, float max2) {
@@ -465,7 +465,7 @@ vec4 directIllumination(vec4 color, float ka, float kd, vec4 p, vec4 n, vec4 v, 
     // Specular lighting
     vec4 H = normalize(v + l);
 
-    float cos_theta_d = dot(H, l);
+    float cos_theta_d = dot(H, normalize(l));
 
     vec4 F = fresnel(cos_theta_d, etaReal, etaImag) * smoothstep(0., 0.1, dot(l, n));
 
@@ -483,7 +483,7 @@ vec4 directIllumination(vec4 color, float ka, float kd, vec4 p, vec4 n, vec4 v, 
         float Gi = GGXShadowMasking(cos_theta_i, alpha);
         float Go = GGXShadowMasking(cos_theta_o, alpha);
 
-        Cs = F * D * Gi * Go * lightColor;
+        Cs = ((F * D * Gi * Go) / (4*cos_theta_i*cos_theta_o)) * color * lightColor;
     }
     
     return Ca + (Cd + Cs) * shadowMask;
@@ -529,27 +529,26 @@ vec3 scatteredLight(vec4 origin, vec4 hit, bool inSurf) {
 vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
 
     float Ks = 1.0;
-    int randomChoice = int(gold_noise(vec2(gl_GlobalInvocationID.xy + vec2(frame_index)), 491.214));
+    float randomChoice = gold_noise(gl_GlobalInvocationID.xy + vec2(frame_index), 491.214);
 
-    int offset = int(gold_noise(vec2(gl_GlobalInvocationID.xy), 491.214) * HALTON_SIZE);
-    float u1 = halton2[(frame_index + offset) % HALTON_SIZE];
-    float u2 = halton3[(frame_index + offset) % HALTON_SIZE];
+    float u1 = gold_noise(vec2(dir.x*normal.y, dir.z) * vec2(21.34, 54.23) + vec2(frame_index), 491.214);
+    float u2 = gold_noise(vec2(normal.x*dir.y, normal.z) * vec2(627.45, 10.425) + vec2(frame_index), 762.430);
 
     //https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
     if (randomChoice < Kd/(Kd + Ks)){
         //Diffus
-        float phi = u1*2*M_1_PI;
-        float theta = acos(1-2*u2);
+        float phi = u1*2.0*M_PI;
+        float theta = acos(1.0-2.0*u2);
         float rdX = sin(theta)*cos(phi);
         float rdY = sin(theta)*sin(phi);
         float rdZ = cos(theta);
         vec4 rdDir = vec4(rdX, rdY, rdZ, 0.);
 
-        if (dot(rdDir,normal) < 0){
+        if (dot(rdDir,normal) < 0.){
             rdDir = -rdDir;
         }
 
-        probability = 0.5*M_1_PI;
+        probability = 0.5*M_1_PI * Kd/(Kd + Ks);
 
         return rdDir;
         
@@ -559,7 +558,7 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
         float phi = 2*M_PI*u1;
         float theta;
         if (blinnPhong){
-            theta = acos(pow(u2, 1/(shininess+2)));
+            theta = acos(pow(u2, 1./(shininess+2.)));
 
             probability = PhongDistribution(cos(theta), shininess);
         }
@@ -573,12 +572,23 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
         float rdX = sin(theta)*cos(phi);
         float rdY = sin(theta)*sin(phi);
         float rdZ = cos(theta);
-
         vec4 rdNormal = vec4(rdX, rdY, rdZ, 0.);
 
-        if (dot(rdNormal.xyz,normal.xyz) < 0){
-            rdNormal = -rdNormal;
+        //Normal to world coordinates
+        vec3 a = cross(normal.xyz, vec3(1., 0., 0.));
+        if (a == vec3(0)){
+            a = cross(normal.xyz, vec3(0. , 1., 0.));
         }
+        vec3 b = cross(normal.xyz, a);
+
+        mat3 rotationMat;
+        rotationMat[0] = a.xyz;
+        rotationMat[1] = b.xyz;
+        rotationMat[2] = normal.xyz;
+
+        probability *= (1. - Kd/(Kd + Ks));
+
+        rdNormal = vec4(rotationMat * rdNormal.xyz, 0.);
 
         return reflect(dir, rdNormal);
     }
@@ -596,6 +606,7 @@ struct trace_state_t
     vec4 N;       // normal at destination
     bool inSurf;  // is inside surface
     float probability; // probability of the importance sampling
+    bool isRefracted;
 };
 
 vec4 trace(vec4 origin, vec4 dir)
@@ -610,7 +621,8 @@ vec4 trace(vec4 origin, vec4 dir)
     vec4 hit;
     vec4 localColor;
     vec4 N;
-    float probability = 1.; //TODO Really 1 ?
+    float probability;
+    float isRefracted;
 
     float specular_factor, LdN;
 
@@ -644,7 +656,7 @@ vec4 trace(vec4 origin, vec4 dir)
         stack[sp].inSurf = inSurf;
 
         // Monte-Carlo Felix
-        // Refletion uniform
+        // Reflection uniform
         // float phi = 2. * M_PI * hash12(hit.xy + 14.75 * fract(frame_index * 5945.269));
         // float u = 2. * hash12(hit.zy + 27.43 * fract(frame_index * 1426.816)) - 1.;
         // float root = sqrt(1. - u*u);
@@ -653,7 +665,7 @@ vec4 trace(vec4 origin, vec4 dir)
 
         // Monte-Carlo Path-Tracing Tom
         dir = monteCarloDirection(stack[sp].N, dir, probability);
-        stack[sp].probability = probability; //TODO Makes no sense
+        stack[sp].probability = probability;
 
         // Reflection speculaire
         // dir = reflect(dir, stack[sp].N);
@@ -668,13 +680,13 @@ vec4 trace(vec4 origin, vec4 dir)
         vec4 trans = refract(stack[sp].dir, stack[sp].N, 1./etaSurf);
         vec4 transOri = hit - 1000 * EPS * trans; //stack[sp].N;
 
-        bool test = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
+        stack[sp].isRefracted = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
         
         nbRebon += 1.;
-        if (test) {
+        if (stack[sp].isRefracted) {
             nbTrans += 1.;
             nbRebon -= 1.;
-            dir = trans; // TODO So Monte Carlo is erased ? 
+            dir = trans;
             origin = transOri;
             sens *= -1.;
             inSurf = !(inSurf);
@@ -700,13 +712,27 @@ vec4 trace(vec4 origin, vec4 dir)
             F = fresnel(dot(stack[sp].N, -stack[sp].dir), etaReal, etaImag);
         }
 
-        vec4 indCol;
-        bool testbis = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
-        if (testbis){
-            indCol = vec4((color * F).rgb / stack[sp].probability, 1.); //With importance sampling
+        // vec4 indCol = directIllumination(
+        //     stack[sp].localColor,
+        //     (transparent && stack[sp].h.hit_vptr != GROUND_VPTR) ? 0. : Ka,
+        //     (transparent && stack[sp].h.hit_vptr != GROUND_VPTR) ? 0. : Kd,
+        //     stack[sp].hit,
+        //     stack[sp].N,
+        //     -stack[sp].dir,
+        //     dir,
+        //     color,
+        //     1
+        // );
+
+        vec4 indCol = color * F;
+        
+        dir = stack[sp].dir;
+
+        if (!stack[sp].isRefracted){
+            indCol = vec4(indCol.rgb * stack[sp].probability, 1.); //With importance sampling
         }
         else{
-            indCol = vec4((color * F).rgb, 1.);
+            indCol = vec4(indCol.rgb, 1.); //Without importance sampling
         }
                 
         // shadow masking
@@ -740,8 +766,6 @@ vec4 trace(vec4 origin, vec4 dir)
             scatColor = scatteredLight(stack[sp].origin, stack[sp].hit, inSurf);
         }
         color = vec4((dirCol.rgb * absoCoefL + indCol.rgb) * absoCoef + scatColor, 1.);
-
-
 
         // color = vec4(vec3(d) / 1000., 1);
         // color = stack[sp].N;
@@ -804,7 +828,7 @@ void main(void) {
     // if (color.r > 1. || color.g > 1. || color.b > 1.) color = vec4(1, 0, 1, 1);
 
 // Nan test
-    // if (isnan(color.x)) color = vec4(1, 1, 1, 1);
+    if (isnan(color.x)) color = vec4(0.0, 1.0, 0.0157, 1.0);
 
     // color = vec4(rd_x+0.5, rd_y+0.5, 0, 1);
 
