@@ -7,6 +7,7 @@ uniform sampler2D colorTexture;
 uniform sampler2D envMap;
 uniform bool useNormalMap;
 uniform sampler2D normalMap;
+uniform sampler2D permTexture;
 uniform sampler2D causticsMap;
 uniform mat4 mat_inverse;
 uniform mat4 persp_inverse;
@@ -133,6 +134,194 @@ bool intersectBoundingBox(vec4 origin, vec4 dir, vec4 bbmin, vec4 bbmax, out flo
     return tNear <= tFar;
 }
 
+float interpolate(float a0, float a1, float w) {
+    // linear
+    // return (a1 - a0) * w + a0;
+
+    // cubic
+    return (a1 - a0) * (3.0 - w * 2.0) * w * w + a0;
+}
+
+// float dotGridGradient(ivec3 iuv, vec3 uv) {
+//     // Get gradient from integer coordinates
+//     // permTexture is 256*256
+//     vec3 gradient = texture(permTexture, vec2(iuv.xy % 256) / 256.).xyz * 4. - 1.;
+
+//     // Compute the distance vector
+//     vec3 d = uv - float(iuv);
+
+//     // Compute the dot-product
+//     return dot(d, gradient);
+// }
+
+// float perlinNoise(vec3 uv) {
+//     // Determine grid cell coordinates
+//     ivec3 uv0 = ivec3(floor(uv));
+//     ivec3 uv1 = uv0 + 1;
+
+//     // Determine interpolation weights
+//     vec3 s = fract(uv);
+        
+//     // Interpolate between grid point gradients
+//     float n0, n1, ix00, ix01, ix10, ix11, ix0, ix1, value;
+
+//     n0 = dotGridGradient(uv0, uv);
+//     n1 = dotGridGradient(ivec3(uv1.x, uv0.yz), uv);
+//     ix00 = interpolate(n0, n1, s.x);
+
+//     n0 = dotGridGradient(ivec3(uv0.x, uv1.y, uv0.z), uv);
+//     n1 = dotGridGradient(ivec3(uv1.xy, uv0.z), uv);
+//     ix01 = interpolate(n0, n1, s.x);
+
+//     ix0 = interpolate(ix00, ix01, s.y);
+
+//     n0 = dotGridGradient(ivec3(uv0.xy, uv1.z), uv);
+//     n1 = dotGridGradient(ivec3(uv1.x, uv0.y, uv1.z), uv);
+//     ix10 = interpolate(n0, n1, s.x);
+
+//     n0 = dotGridGradient(ivec3(uv0.x, uv1.yz), uv);
+//     n1 = dotGridGradient(uv1, uv);
+//     ix11 = interpolate(n0, n1, s.x);
+
+//     ix1 = interpolate(ix10, ix11, s.y);
+
+//     value = interpolate(ix0, ix1, s.z);
+
+//     return value;
+// }
+
+// float dotGridGradient(ivec2 iuv, vec2 uv) {
+//     // Get gradient from integer coordinates
+//     // permTexture is 256*256
+//     vec2 gradient = texture(permTexture, vec2(iuv % 256) / 256.).xy * 4. - 1.;
+
+//     // Compute the distance vector
+//     vec2 d = uv - float(iuv);
+
+//     // Compute the dot-product
+//     return dot(d, gradient);
+// }
+
+// float perlinNoise(vec2 uv) {
+//     // Determine grid cell coordinates
+//     ivec2 uv0 = ivec2(floor(uv));
+//     ivec2 uv1 = uv0 + 1;
+
+//     // Determine interpolation weights
+//     vec2 s = fract(uv);
+        
+//     // Interpolate between grid point gradients
+//     float n0, n1, ix0, ix1, value;
+
+//     n0 = dotGridGradient(uv0, uv);
+//     n1 = dotGridGradient(ivec2(uv1.x, uv0.y), uv);
+//     ix0 = interpolate(n0, n1, s.x);
+
+//     n0 = dotGridGradient(ivec2(uv0.x, uv1.y), uv);
+//     n1 = dotGridGradient(uv1, uv);
+//     ix1 = interpolate(n0, n1, s.x);
+
+//     value = interpolate(ix0, ix1, s.y);
+
+//     return value;
+// }
+
+float dotGridGradient(int ix, int iy, int iz, float x, float y, float z) {
+    // Get gradient from integer coordinates
+    // permTexture is 256*256
+    vec3 gradient = texture(permTexture, vec2(float(ix + (iz * 63) % 256) / 256., float(iy - (iz * 63) % 256) / 256.)).xyz * 4. - 1.;
+
+    // Compute the distance vector
+    vec3 d = vec3(x-float(ix), y-float(iy), z-float(iz));
+
+    // Compute the dot-product
+    return d.x*gradient.x + d.y*gradient.y + d.z*gradient.z;
+}
+
+float perlinNoise(vec3 uv) {
+    float x = uv.x;
+    float y = uv.y;
+    float z = uv.z;
+
+    // Determine grid cell coordinates
+    int x0 = int(floor(x));
+    int x1 = x0 + 1;
+    int y0 = int(floor(y));
+    int y1 = y0 + 1;
+    int z0 = int(floor(z));
+    int z1 = z0 + 1;
+
+    // Determine interpolation weights
+    vec3 s = vec3(x - float(x0), y - float(y0), z - float(z0));
+        
+    // Interpolate between grid point gradients
+    float n0, n1, ix0, ix1, down, up, value;
+
+    n0 = dotGridGradient(x0, y0, z0, x, y, z);
+    n1 = dotGridGradient(x1, y0, z0, x, y, z);
+    ix0 = interpolate(n0, n1, s.x);
+
+    n0 = dotGridGradient(x0, y1, z0, x, y, z);
+    n1 = dotGridGradient(x1, y1, z0, x, y, z);
+    ix1 = interpolate(n0, n1, s.x);
+
+    down = interpolate(ix0, ix1, s.y);
+
+    n0 = dotGridGradient(x0, y0, z1, x, y, z);
+    n1 = dotGridGradient(x1, y0, z1, x, y, z);
+    ix0 = interpolate(n0, n1, s.x);
+
+    n0 = dotGridGradient(x0, y1, z1, x, y, z);
+    n1 = dotGridGradient(x1, y1, z1, x, y, z);
+    ix1 = interpolate(n0, n1, s.x);
+
+    up = interpolate(ix0, ix1, s.y);
+
+    return interpolate(down, up, s.z);
+}
+
+float dotGridGradient(int ix, int iy, float x, float y) {
+    // Get gradient from integer coordinates
+    // permTexture is 256*256
+    vec2 gradient = texture(permTexture, vec2(float(ix % 256) / 256., float(iy % 256) / 256.)).xy * 4. - 1.;
+
+    // Compute the distance vector
+    vec2 d = vec2(x-float(ix), y-float(iy));
+
+    // Compute the dot-product
+    return d.x*gradient.x + d.y*gradient.y;
+}
+
+float perlinNoise(vec2 uv) {
+    float x = uv.x;
+    float y = uv.y;
+
+    // Determine grid cell coordinates
+    int x0 = int(floor(x));
+    int x1 = x0 + 1;
+    int y0 = int(floor(y));
+    int y1 = y0 + 1;
+
+    // Determine interpolation weights
+    vec2 s = vec2(x - float(x0), y - float(y0));
+        
+    // Interpolate between grid point gradients
+    float n0, n1, ix0, ix1, value;
+
+    n0 = dotGridGradient(x0, y0, x, y);
+    n1 = dotGridGradient(x1, y0, x, y);
+    ix0 = interpolate(n0, n1, s.x);
+
+    n0 = dotGridGradient(x0, y1, x, y);
+    n1 = dotGridGradient(x1, y1, x, y);
+    ix1 = interpolate(n0, n1, s.x);
+
+    value = interpolate(ix0, ix1, s.y);
+    return value;
+}
+
+
+
 // intersect ray (origin, dir) with triangle defined by ptr (number inside indexed face set)
 // returns a boolean, plus the "t" of hitinfo structure (Intersection distance, barycentric coordinates)
 bool intersectTriangle(vec4 origin, vec4 dir, int ptr, out vec4 dist, bool reverse)
@@ -208,7 +397,9 @@ vec4 interpolateColor(hitinfo_t h)
 		vec4 c1 = colors[indices[h.hit_vptr + 1]];
 		vec4 c2 = colors[indices[h.hit_vptr + 2]];
 		return (h.t.w * c0 + h.t.y * c1 + h.t.z * c2);
-	} else return vec4(0.7, 0.7, 0.7, 1.0);
+	} else {
+        return vec4(0.7, 0.7, 0.7, 1.0);
+    }
 }
 
 vec4 interpolateNormal(hitinfo_t h)
@@ -507,6 +698,10 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
         }
     } else {
         color = interpolateColor(h);
+        float motif = perlinNoise(p.xyz);
+        motif = min(abs(motif) * 15., 1.);
+        motif = pow(motif, 50.);
+        color = vec4(vec3(motif), 1.);
         n = interpolateNormal(h);
     }
 }
@@ -535,7 +730,7 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
     float u1 = halton2[(frame_index + offset) % HALTON_SIZE];
     float u2 = halton3[(frame_index + offset) % HALTON_SIZE];
 
-    //https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
+    //https://www.cs.cornell.edu/~srm/publications/EGSRx07-btdf.pdf
     if (randomChoice < Kd/(Kd + Ks)){
         //Diffus
         float phi = u1*2*M_1_PI;
@@ -666,7 +861,7 @@ vec4 trace(vec4 origin, vec4 dir)
         
         // vec4 trans = stack[sp].dir;
         vec4 trans = refract(stack[sp].dir, stack[sp].N, 1./etaSurf);
-        vec4 transOri = hit - 1000 * EPS * trans; //stack[sp].N;
+        vec4 transOri = hit + 1000 * EPS * trans; //stack[sp].N;
 
         bool test = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
         
@@ -700,14 +895,19 @@ vec4 trace(vec4 origin, vec4 dir)
             F = fresnel(dot(stack[sp].N, -stack[sp].dir), etaReal, etaImag);
         }
 
-        vec4 indCol;
-        bool testbis = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
-        if (testbis){
-            indCol = vec4((color * F).rgb / stack[sp].probability, 1.); //With importance sampling
-        }
-        else{
-            indCol = vec4((color * F).rgb, 1.);
-        }
+        vec4 indCol = directIllumination(
+            stack[sp].localColor,
+            Ka,
+            Kd,
+            stack[sp].hit,
+            stack[sp].N,
+            -stack[sp].dir,
+            dir,
+            color,
+            1.
+        );
+
+        dir = stack[sp].dir;
                 
         // shadow masking
         vec4 l = normalize(vec4(lightPosition, 1.) - stack[sp].hit);
@@ -796,15 +996,16 @@ void main(void) {
     // Step 2: ray direction:
     vec4 dir = normalize((mat_inverse * worldPos));
     vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
-    vec4 color = trace(eye, dir);
+    vec4 color = vec4(0);
+    // color = trace(eye, dir);
 
     if (gammaCorrection) color = pow(color, vec4(vec3(.4545), 1.));
 
-// OverSaturated value test
+    // OverSaturated value test
     // if (color.r > 1. || color.g > 1. || color.b > 1.) color = vec4(1, 0, 1, 1);
 
-// Nan test
-    // if (isnan(color.x)) color = vec4(1, 1, 1, 1);
+    // Nan test
+    // if (isnan(color.x)) color = vec4(1, 0, 1, 1);
 
     // color = vec4(rd_x+0.5, rd_y+0.5, 0, 1);
 
@@ -848,7 +1049,11 @@ void main(void) {
     //     nextColor = vec4(0, 0, 0, 1);
     // }
 
-    // nextColor = texture(causticsMap, vec2(pix.x, pix.y));
+    // perlinNoise visualisation
+    // float perlin = perlinNoise(10. * vec2(pix)/vec2(size));
+    // nextColor = vec4(vec3(perlin), 1.);
+
+    nextColor = texture(causticsMap, vec2(pix)/vec2(size));
 
     imageStore(variancebuffer, pix, nextVariance);
     imageStore(framebuffer, pix, nextColor);

@@ -983,17 +983,18 @@ void glShaderWindow::loadTexturesForShaders() {
             environmentMap->setMagnificationFilter(QOpenGLTexture::Linear);
             environmentMap->bind(1);
         }
-    } else {
+    } 
+    if ((m_program->uniformLocation("permTexture") != -1) 
+        || (hasComputeShaders && compute_program->uniformLocation("permTexture") != -1)) {
         // for Perlin noise
-		glActiveTexture(GL_TEXTURE1);
-        if (m_program->uniformLocation("permTexture") != -1) {
-            permTexture = new QOpenGLTexture(QImage(pixels, 256, 256, QImage::Format_RGBA8888));
-            if (permTexture) {
-                permTexture->setWrapMode(QOpenGLTexture::MirroredRepeat);
-                permTexture->setMinificationFilter(QOpenGLTexture::Nearest);
-                permTexture->setMagnificationFilter(QOpenGLTexture::Nearest);
-                permTexture->bind(1);
-            }
+		glActiveTexture(GL_TEXTURE6);
+        permTexture = new QOpenGLTexture(QImage(pixels, 256, 256, QImage::Format_RGBA8888));
+
+        if (permTexture) {
+            permTexture->setWrapMode(QOpenGLTexture::MirroredRepeat);
+            permTexture->setMinificationFilter(QOpenGLTexture::Nearest);
+            permTexture->setMagnificationFilter(QOpenGLTexture::Nearest);
+            permTexture->bind(6);
         }
     }
     if (hasComputeShaders) {
@@ -1016,7 +1017,7 @@ void glShaderWindow::loadTexturesForShaders() {
         if (causticsResult) {
         	causticsResult->create();
             causticsResult->setFormat(QOpenGLTexture::RGBA32F);
-            causticsResult->setSize(width(), height());
+            causticsResult->setSize(256, 256);
             causticsResult->setWrapMode(QOpenGLTexture::MirroredRepeat);
             causticsResult->setMinificationFilter(QOpenGLTexture::Nearest);
             causticsResult->setMagnificationFilter(QOpenGLTexture::Nearest);
@@ -1092,9 +1093,6 @@ void glShaderWindow::initialize()
 
     shadowMapGenerationProgram = prepareShaderProgram(shaderPath + "h_shadowMapGeneration.vert", shaderPath + "h_shadowMapGeneration.frag");
 
-    // loading texture:
-    loadTexturesForShaders();
-
     m_vao.create();
     m_vao.bind();
     m_vertexBuffer.create();
@@ -1105,6 +1103,9 @@ void glShaderWindow::initialize()
     if (width() > height()) m_screenSize = width(); else m_screenSize = height();
     initPermTexture(); // create Perlin noise texture
     m_vao.release();
+
+    // loading texture:
+    loadTexturesForShaders();
 
     ground_vao.create();
     ground_vao.bind();
@@ -1380,8 +1381,8 @@ void glShaderWindow::render()
         caustics_program->setUniformValue("center", m_center);
         caustics_program->setUniformValue("causticsMap", 5);
         glBindImageTexture(5, causticsResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
-        int worksize_x = nextPower2(width());
-        int worksize_y = nextPower2(height());
+        int worksize_x = 256;
+        int worksize_y = 256;
         glDispatchCompute(worksize_x / compute_groupsize_x, worksize_y / compute_groupsize_y, 1);
         glBindImageTexture(5, 0, 0, false, 0, GL_READ_ONLY, GL_RGBA32F); 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -1416,6 +1417,7 @@ void glShaderWindow::render()
         compute_program->setUniformValue("colorTexture", 0);
         compute_program->setUniformValue("normalMap", 4);
         compute_program->setUniformValue("causticsMap", 5);
+	    compute_program->setUniformValue("permTexture", 6);
         compute_program->setUniformValue("envMap", 1);
 		glBindImageTexture(2, computeResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
         worksize_x = nextPower2(width());
@@ -1491,7 +1493,7 @@ void glShaderWindow::render()
 	if (m_program->uniformLocation("normalMap") != -1) m_program->setUniformValue("normalMap", 4);
 	if (m_program->uniformLocation("causticsMap") != -1) m_program->setUniformValue("caustics", 5);
     if (m_program->uniformLocation("envMap") != -1)  m_program->setUniformValue("envMap", 1);
-	else if (m_program->uniformLocation("permTexture") != -1)  m_program->setUniformValue("permTexture", 1);
+	if (m_program->uniformLocation("permTexture") != -1)  m_program->setUniformValue("permTexture", 6);
     // Shadow Mapping
     if (m_program->uniformLocation("shadowMap") != -1) {
         m_program->setUniformValue("shadowMap", 2);
