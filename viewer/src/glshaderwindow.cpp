@@ -31,12 +31,12 @@
 glShaderWindow::glShaderWindow(QWindow *parent)
 // Initialize obvious default values here (e.g. 0 for pointers)
     : OpenGLWindow(parent), modelMesh(0),
-      m_program(0), compute_program(0), shadowMapGenerationProgram(0),
+      m_program(0), compute_program(0), caustics_program(0), shadowMapGenerationProgram(0),
       g_vertices(0), g_normals(0), g_texcoords(0), g_colors(0), g_indices(0),
       gpgpu_vertices(0), gpgpu_normals(0), gpgpu_texcoords(0), gpgpu_colors(0), gpgpu_indices(0),
       environmentMap(0), texture(0), textureNormal(0), useNormalMap(false), permTexture(0), pixels(0), mouseButton(Qt::NoButton), auxWidget(0),
       isGPGPU(true), hasComputeShaders(true), blinnPhong(true), transparent(false), etaReal({1.5, 1.5, 1.5}), etaImag({0., 0., 0.}), lightIntensity({1., 1., 1.}), lightIntensityHSV({0., 0., 1.}), shininess(50.0f), lightDistance(5.0f), groundDistance(0.78),
-      shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), computeResult(0), gammaCorrection(false), participatingEnv(false), maxTrace(7),
+      shadowMap_fboId(0), shadowMap_rboId(0), shadowMap_textureId(0), fullScreenSnapshots(false), causticsResult(0), computeResult(0), gammaCorrection(false), participatingEnv(false), maxTrace(7),
       m_indexBuffer(QOpenGLBuffer::IndexBuffer), ground_indexBuffer(QOpenGLBuffer::IndexBuffer)
 {
     // Default values you might want to tinker with
@@ -69,6 +69,10 @@ glShaderWindow::~glShaderWindow()
     if (compute_program) {
         compute_program->release();
         delete compute_program;
+    }
+    if (caustics_program) {
+        caustics_program->release();
+        delete caustics_program;
     }
     if (shadowMap_textureId) glDeleteTextures(1, &shadowMap_textureId);
     if (shadowMap_fboId) glDeleteFramebuffers(1, &shadowMap_fboId);
@@ -604,6 +608,12 @@ void glShaderWindow::createSSBO()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, ssbo[2]);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, ssbo[3]);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, ssbo[4]);
+    caustics_program->bind();
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, ssbo[0]);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, ssbo[1]);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, ssbo[2]);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, ssbo[3]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, ssbo[4]);
 }
 
 void glShaderWindow::bindSceneToProgram()
@@ -833,7 +843,7 @@ void glShaderWindow::openScene()
             modelMesh->bsphere.center[1],
             modelMesh->bsphere.center[2]);
 
-	if (compute_program) {
+	if (compute_program && caustics_program) {
         createSSBO();
     }
     bindSceneToProgram();
@@ -924,6 +934,12 @@ void glShaderWindow::loadTexturesForShaders() {
         delete environmentMap;
         environmentMap = 0;
     }
+    if (causticsResult) {
+        causticsResult->release();
+        causticsResult->destroy();
+        delete causticsResult;
+        causticsResult = 0;
+    }
     if (computeResult) {
         computeResult->release();
         computeResult->destroy();
@@ -995,6 +1011,18 @@ void glShaderWindow::loadTexturesForShaders() {
             computeResult->allocateStorage();
             computeResult->bind(2);
         }
+        glActiveTexture(GL_TEXTURE5);
+        causticsResult = new QOpenGLTexture(QOpenGLTexture::Target2D);
+        if (causticsResult) {
+        	causticsResult->create();
+            causticsResult->setFormat(QOpenGLTexture::RGBA32F);
+            causticsResult->setSize(width(), height());
+            causticsResult->setWrapMode(QOpenGLTexture::MirroredRepeat);
+            causticsResult->setMinificationFilter(QOpenGLTexture::Nearest);
+            causticsResult->setMagnificationFilter(QOpenGLTexture::Nearest);
+            causticsResult->allocateStorage();
+            causticsResult->bind(5);
+        }
     } else if (m_program->uniformLocation("shadowMap") != -1) {
     	// without Qt functions this time
 		glActiveTexture(GL_TEXTURE2);
@@ -1059,6 +1087,7 @@ void glShaderWindow::initialize()
     }
 	QString shaderPath = workingDirectory + "../shaders/";
     m_program = prepareShaderProgram(shaderPath + "gpgpu_fullrt.vert", shaderPath + "gpgpu_fullrt.frag");
+   	caustics_program = prepareComputeProgram(shaderPath + "gpgpu_caustics.comp");
    	compute_program = prepareComputeProgram(shaderPath + "gpgpu_fullrt.comp");
 
     shadowMapGenerationProgram = prepareShaderProgram(shaderPath + "h_shadowMapGeneration.vert", shaderPath + "h_shadowMapGeneration.frag");
@@ -1333,8 +1362,31 @@ void glShaderWindow::render()
         bool invertible;
         mat_inverse = mat_inverse.inverted(&invertible);
         persp_inverse = persp_inverse.inverted(&invertible);
-    } 
+    }
     if (hasComputeShaders) {
+               glActiveTexture(GL_TEXTURE5);
+        caustics_program->bind();
+        causticsResult->bind(5);
+        caustics_program->setUniformValue("mat_inverse", mat_inverse);
+        caustics_program->setUniformValue("persp_inverse", persp_inverse);
+        caustics_program->setUniformValue("lightIntensity", QVector3D(lightIntensity[0], lightIntensity[1], lightIntensity[2]));
+        caustics_program->setUniformValue("lightPosition", lightPosition);
+        caustics_program->setUniformValue("transparent", transparent);
+        caustics_program->setUniformValue("etaReal", QVector3D(etaReal[0], etaReal[1], etaReal[2]));
+        caustics_program->setUniformValue("etaImag", QVector3D(etaImag[0], etaImag[1], etaImag[2]));
+        caustics_program->setUniformValue("participatingEnv", participatingEnv);
+        caustics_program->setUniformValue("radius", modelMesh->bsphere.r);
+        caustics_program->setUniformValue("groundDistance", groundDistance * modelMesh->bsphere.r - m_center[1]);
+        caustics_program->setUniformValue("center", m_center);
+        caustics_program->setUniformValue("causticsMap", 5);
+        glBindImageTexture(5, causticsResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
+        int worksize_x = nextPower2(width());
+        int worksize_y = nextPower2(height());
+        glDispatchCompute(worksize_x / compute_groupsize_x, worksize_y / compute_groupsize_y, 1);
+        glBindImageTexture(5, 0, 0, false, 0, GL_READ_ONLY, GL_RGBA32F); 
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        caustics_program->release();
+
         // We bind the texture generated to texture unit 2 (0 is for the texture, 1 for the env map)
                glActiveTexture(GL_TEXTURE2);
         compute_program->bind();
@@ -1363,10 +1415,11 @@ void glShaderWindow::render()
         compute_program->setUniformValue("variancebuffer", 3);
         compute_program->setUniformValue("colorTexture", 0);
         compute_program->setUniformValue("normalMap", 4);
+        compute_program->setUniformValue("causticsMap", 5);
         compute_program->setUniformValue("envMap", 1);
 		glBindImageTexture(2, computeResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
-        int worksize_x = nextPower2(width());
-        int worksize_y = nextPower2(height());
+        worksize_x = nextPower2(width());
+        worksize_y = nextPower2(height());
         glDispatchCompute(worksize_x / compute_groupsize_x, worksize_y / compute_groupsize_y, 1);
         glBindImageTexture(2, 0, 0, false, 0, GL_READ_ONLY, GL_RGBA32F); 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -1436,6 +1489,7 @@ void glShaderWindow::render()
     m_program->setUniformValue("radius", modelMesh->bsphere.r);
 	if (m_program->uniformLocation("colorTexture") != -1) m_program->setUniformValue("colorTexture", 0);
 	if (m_program->uniformLocation("normalMap") != -1) m_program->setUniformValue("normalMap", 4);
+	if (m_program->uniformLocation("causticsMap") != -1) m_program->setUniformValue("caustics", 5);
     if (m_program->uniformLocation("envMap") != -1)  m_program->setUniformValue("envMap", 1);
 	else if (m_program->uniformLocation("permTexture") != -1)  m_program->setUniformValue("permTexture", 1);
     // Shadow Mapping

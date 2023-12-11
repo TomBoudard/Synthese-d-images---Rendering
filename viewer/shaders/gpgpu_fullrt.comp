@@ -7,6 +7,7 @@ uniform sampler2D colorTexture;
 uniform sampler2D envMap;
 uniform bool useNormalMap;
 uniform sampler2D normalMap;
+uniform sampler2D causticsMap;
 uniform mat4 mat_inverse;
 uniform mat4 persp_inverse;
 uniform vec3 lightIntensity;
@@ -494,7 +495,8 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
 {
     p = origin + h.t.x * dir;
     if (h.hit_vptr == GROUND_VPTR) {
-        color = texture(colorTexture, h.t.pq);
+        color = texture(colorTexture, h.t.pq);// + texture(causticsMap, h.t.pq);
+        // TODO : use caustic
         p.y = -groundDistance;
         if (useNormalMap) {
             vec3 normal = 2*(texture(normalMap, h.t.pq).xyz) - 1.;
@@ -526,7 +528,7 @@ vec3 scatteredLight(vec4 origin, vec4 hit, bool inSurf) {
 
 vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
 
-    float Ks = 1.;
+    float Ks = 1.0;
     int randomChoice = int(gold_noise(vec2(gl_GlobalInvocationID.xy + vec2(frame_index)), 491.214));
 
     int offset = int(gold_noise(vec2(gl_GlobalInvocationID.xy), 491.214) * HALTON_SIZE);
@@ -547,7 +549,7 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
             rdDir = -rdDir;
         }
 
-        probability = 1.;
+        probability = 0.5*M_1_PI;
 
         return rdDir;
         
@@ -582,10 +584,6 @@ vec4 monteCarloDirection(vec4 normal, vec4 dir, out float probability) {
     }
 }
 
-void testout(out float truc){
-    truc = 0.999324;
-}
-
 struct trace_state_t
 {
     vec4 origin;  // start of ray
@@ -597,7 +595,7 @@ struct trace_state_t
     vec4 Ld;      // direction to light at destination
     vec4 N;       // normal at destination
     bool inSurf;  // is inside surface
-    float probability; // probability of the importance sampling for specular
+    float probability; // probability of the importance sampling
 };
 
 vec4 trace(vec4 origin, vec4 dir)
@@ -612,7 +610,7 @@ vec4 trace(vec4 origin, vec4 dir)
     vec4 hit;
     vec4 localColor;
     vec4 N;
-    float probability = 1.;
+    float probability = 1.; //TODO Really 1 ?
 
     float specular_factor, LdN;
 
@@ -644,7 +642,6 @@ vec4 trace(vec4 origin, vec4 dir)
         stack[sp].Ld = normalize(vec4(lightPosition, 1.) - hit);
         stack[sp].N = sens * N;
         stack[sp].inSurf = inSurf;
-        stack[sp].probability = probability;
 
         // Monte-Carlo Felix
         // Refletion uniform
@@ -655,8 +652,8 @@ vec4 trace(vec4 origin, vec4 dir)
         // dir = dot(dir, stack[sp].N) > 0 ? dir : -dir;
 
         // Monte-Carlo Path-Tracing Tom
-        float testing;
         dir = monteCarloDirection(stack[sp].N, dir, probability);
+        stack[sp].probability = probability; //TODO Makes no sense
 
         // Reflection speculaire
         // dir = reflect(dir, stack[sp].N);
@@ -677,7 +674,7 @@ vec4 trace(vec4 origin, vec4 dir)
         if (test) {
             nbTrans += 1.;
             nbRebon -= 1.;
-            dir = trans;
+            dir = trans; // TODO So Monte Carlo is erased ? 
             origin = transOri;
             sens *= -1.;
             inSurf = !(inSurf);
@@ -703,8 +700,15 @@ vec4 trace(vec4 origin, vec4 dir)
             F = fresnel(dot(stack[sp].N, -stack[sp].dir), etaReal, etaImag);
         }
 
-        vec4 indCol = color * F;
-        
+        vec4 indCol;
+        bool testbis = (transparent && (stack[sp].h.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + frame_index*42.123) > F.x);
+        if (testbis){
+            indCol = vec4((color * F).rgb / stack[sp].probability, 1.); //With importance sampling
+        }
+        else{
+            indCol = vec4((color * F).rgb, 1.);
+        }
+                
         // shadow masking
         vec4 l = normalize(vec4(lightPosition, 1.) - stack[sp].hit);
         float shadowMask = (dot(l, stack[sp].N) < 0 || isIntersected(stack[sp].hit+1000*EPS*stack[sp].N, l)) ? 0. : 1.;
@@ -721,18 +725,16 @@ vec4 trace(vec4 origin, vec4 dir)
             shadowMask
         );
 
-        dirCol = vec4(dirCol.xyz/stack[sp].probability, 1.); // importance sampling
-
         // On fait du brouillard
         // http://www.sci.utah.edu/publications/pegoraro09/Pegoraro_CGF09.pdf
 
         float d = length(stack[sp].origin - stack[sp].hit);
         vec3 absoCoef = stack[sp].inSurf ? vec3(1.) : exp(-(coefAbso+coefScatter)*d);
         absoCoef = participatingEnv ? absoCoef : vec3(1.);
-        float dbis = length(lightPosition - stack[sp].hit.xyz);
+                float dbis = length(lightPosition - stack[sp].hit.xyz);
         vec3 absoCoefL = stack[sp].inSurf ? vec3(1.) : exp(-(coefAbso+coefScatter)*dbis);
         absoCoefL = participatingEnv ? absoCoefL : vec3(1.);
-
+        
         vec3 scatColor = vec3(0);
         if (participatingEnv) {
             scatColor = scatteredLight(stack[sp].origin, stack[sp].hit, inSurf);
@@ -798,10 +800,10 @@ void main(void) {
 
     if (gammaCorrection) color = pow(color, vec4(vec3(.4545), 1.));
 
-    // OverSaturated value test
+// OverSaturated value test
     // if (color.r > 1. || color.g > 1. || color.b > 1.) color = vec4(1, 0, 1, 1);
 
-    // Nan test
+// Nan test
     // if (isnan(color.x)) color = vec4(1, 1, 1, 1);
 
     // color = vec4(rd_x+0.5, rd_y+0.5, 0, 1);
@@ -838,13 +840,15 @@ void main(void) {
     // if (abs(uv.y - 1.) < 0.002) {
     //     nextColor = vec4(1, 0, 0, 1);
     // }
-
+    
     // fresnel color visualisation
     // vec2 uv = vec2(1, 2) * pix / vec2(640, 480);
     // nextColor = uv.y > 1. ? vec4(1, 0, 0, 1) : vec4(0, 0, 1, 1);
     // if (abs(uv.y - 1.) < 0.05) {
     //     nextColor = vec4(0, 0, 0, 1);
     // }
+
+    // nextColor = texture(causticsMap, vec2(pix.x, pix.y));
 
     imageStore(variancebuffer, pix, nextVariance);
     imageStore(framebuffer, pix, nextColor);
