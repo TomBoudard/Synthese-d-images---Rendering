@@ -1016,7 +1016,7 @@ void main(void) {
     vec4 dir = normalize((mat_inverse * worldPos));
     vec4 eye = (mat_inverse * vec4(0, 0, 0, 1));
     vec4 color = vec4(0);
-    // color = trace(eye, dir);
+    color = trace(eye, dir);
 
     if (gammaCorrection) color = pow(color, vec4(vec3(.4545), 1.));
 
@@ -1072,7 +1072,7 @@ void main(void) {
     // float perlin = perlinNoise(10. * vec2(pix)/vec2(size));
     // nextColor = vec4(vec3(perlin), 1.);
 
-    nextColor = texture(causticsMap, vec2(pix)/vec2(size));
+    // nextColor = texture(causticsMap, vec2(pix)/vec2(size));
 
     imageStore(variancebuffer, pix, nextVariance);
     imageStore(framebuffer, pix, nextColor);

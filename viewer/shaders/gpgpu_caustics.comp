@@ -493,7 +493,7 @@ void main(void) {
         float rdZ = cos(theta);
         vec4 dir = vec4(rdX, rdY, rdZ, 0);
         
-        trace(origin, dir);
+        // trace(origin, dir);
     }
 
     imageStore(causticsMap, pix, vec4(1.0, 0., 1.0, 1.0));
