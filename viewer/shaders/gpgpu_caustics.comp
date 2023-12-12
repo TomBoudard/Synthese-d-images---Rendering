@@ -12,6 +12,7 @@ uniform vec3 etaImag;
 uniform bool participatingEnv;
 uniform float radius;
 uniform float groundDistance;
+uniform int frame_index;
 uniform vec3 center;
 
 #define HALTON_SIZE 128
@@ -412,13 +413,16 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
     }
 }
 
-void writeTexture(vec4 origin, vec4 dir, hitinfo_t hl, vec4 color){
+void writeTexture(vec4 origin, vec4 dir, hitinfo_t hl, vec4 color) {
     ivec2 size = imageSize(causticsMap);
-    ivec2 uv = ivec2(hl.t.pq * size);
-    imageStore(causticsMap, uv, color + imageLoad(causticsMap, uv));
+    vec2 caustTex = (hl.t.pq + 1.) / 2.;
+    ivec2 uv = ivec2(caustTex * size);
+    vec4 prevColor = imageLoad(causticsMap, uv);
+    if (abs(prevColor.w - float(frame_index)) > 0.2) prevColor = vec4(0);
+    imageStore(causticsMap, uv, vec4(color.rgb + prevColor.rgb, float(frame_index)));
 }
 
-const int MAX_TRACE = 2;
+const int MAX_TRACE = 10;
 
 void trace(vec4 origin, vec4 dir){
 
@@ -434,40 +438,40 @@ void trace(vec4 origin, vec4 dir){
     
     while(sp < MAX_TRACE && firstIntersection(origin, dir, hl, inSurf)){
         
-        // getLocal(origin, dir, hl, localColor, hit, N);
-        // N = sens*N;
-        // // ce qui ce passe pour la lumiere a l'interface
-        // vec4 opaqueFresnel = vec4(1.);
-        // if (!transparent || hl.hit_vptr == GROUND_VPTR) {
-        //     opaqueFresnel = fresnel(dot(N, -dir), etaReal, etaImag);
-        // }
-        // color *= opaqueFresnel;
+        getLocal(origin, dir, hl, localColor, hit, N);
+        N = sens*N;
+        // ce qui ce passe pour la lumiere a l'interface
+        vec4 opaqueFresnel = vec4(1.);
+        if (!transparent || hl.hit_vptr == GROUND_VPTR) {
+            opaqueFresnel = fresnel(dot(N, -dir), etaReal, etaImag);
+        }
+        color *= opaqueFresnel;
 
         
-        // if(hl.hit_vptr == GROUND_VPTR){ 
-        //     //writeTexture(origin, dir, hl, color);
-        //     return;
-        // }
+        if(sp > 0 && hl.hit_vptr == GROUND_VPTR){ 
+            writeTexture(origin, dir, hl, color);
+            return;
+        }
 
-        // float etaMoy = (etaReal.r+etaReal.g+etaReal.b)/3.;
-        // float etaSurf = inSurf ? 1./etaMoy : etaMoy;
-        // vec4 transparentFresnel = fresnel(dot(N, -dir), vec3(etaSurf), vec3(0.));
+        float etaMoy = (etaReal.r+etaReal.g+etaReal.b)/3.;
+        float etaSurf = inSurf ? 1./etaMoy : etaMoy;
+        vec4 transparentFresnel = fresnel(dot(N, -dir), vec3(etaSurf), vec3(0.));
 
-        // vec4 refraction = refract(dir, N, 1./etaSurf);
-        // vec4 refractionOrigin = hit - 1000 * EPS * refraction;
+        vec4 refraction = refract(dir, N, 1./etaSurf);
+        vec4 refractionOrigin = hit - 1000 * EPS * refraction;
 
-        // bool refractTest = (transparent && (hl.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + gl_GlobalInvocationID.x*42.123) > transparentFresnel.x);
+        bool refractTest = (transparent && (hl.hit_vptr != GROUND_VPTR) && hash13(origin.xyz + gl_GlobalInvocationID.x*42.123) > transparentFresnel.x);
 
-        // if(refractTest){
-        //     origin = refractionOrigin;
-        //     dir = refraction;
-        //     sens *= -1.;
-        //     inSurf = !(inSurf);
-        // }
-        // else{
-        //     dir = reflect(dir, N);
-        //     origin = hit + 1000 * EPS * dir;
-        // }
+        if(refractTest){
+            origin = refractionOrigin;
+            dir = refraction;
+            sens *= -1.;
+            inSurf = !(inSurf);
+        }
+        else{
+            dir = reflect(dir, N);
+            origin = hit + 1000 * EPS * dir;
+        }
         sp++;
     }
 }
@@ -475,33 +479,28 @@ void trace(vec4 origin, vec4 dir){
 layout (local_size_x = 8, local_size_y = 8) in;
 void main(void) {
 
+    // in range 1024
     ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
 
-    for (int i = 1; i <= 1; i++) {
+    int res = 32;
+    for (int i = 0; i < res; i++) {
+        for (int j = 0; j < res; j++) {
+            ivec2 subpix = res*pix + ivec2(i, j);
+            vec2 pos = vec2(subpix) / vec2(1024 * res);
+            float u1 = pos.x;
+            float u2 = pos.y;
+            float phi = u1*2*M_PI;
+            float theta = acos(1-2*u2);
+            float rdZ = sin(theta)*cos(phi);
+            float rdX = sin(theta)*sin(phi);
+            float rdY = cos(theta);
+            vec4 dir = vec4(rdX, rdY, rdZ, 0);
 
-        // genere une dir a partir de pix
-        vec4 origin = vec4(lightPosition, 1.);
-        // int offset = int(gold_noise(pix, 491.214) * HALTON_SIZE); //TODO Okay to use gold_noise ? Else where to know image size and is accumulation needed ?
-        // float u1 = halton2[offset % HALTON_SIZE];
-        // float u2 = halton3[offset % HALTON_SIZE];
-        float u1 = gold_noise(vec2(pix) * vec2(15.215, 78.159) + vec2(47.78, 46.465), 454.65);
-        float u2 = gold_noise(vec2(pix) * vec2(12.325, 24.312) + vec2(54.65, 78.946), 794.521);
-        float phi = u1*2*M_1_PI;
-        float theta = acos(1-2*u2);
-        float rdX = sin(theta)*cos(phi);
-        float rdY = sin(theta)*sin(phi);
-        float rdZ = cos(theta);
-        vec4 dir = vec4(rdX, rdY, rdZ, 0);
-        
-        // trace(origin, dir);
+            vec4 origin = vec4(lightPosition, 1.);
+
+            trace(origin, dir);
+        }
     }
 
-    imageStore(causticsMap, pix, vec4(1.0, 0., 1.0, 1.0));
-
-    // if (pix.x >= 0 && pix.x <= 1){
-    //     imageStore(causticsMap, pix, vec4(1.0, 1.0, 1.0, 1.0));
-    // }
-    // else{
-    //     imageStore(causticsMap, pix, vec4(pix.x, 0.0, 0.0, 1.0));
-    // }
+    if (abs(imageLoad(causticsMap, pix).w - float(frame_index)) < 0.2) imageStore(causticsMap, pix, vec4(0, 0, 0, float(frame_index)));
 }

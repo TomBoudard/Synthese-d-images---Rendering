@@ -1017,8 +1017,8 @@ void glShaderWindow::loadTexturesForShaders() {
         if (causticsResult) {
         	causticsResult->create();
             causticsResult->setFormat(QOpenGLTexture::RGBA32F);
-            causticsResult->setSize(256, 256);
-            causticsResult->setWrapMode(QOpenGLTexture::MirroredRepeat);
+            causticsResult->setSize(1024, 1024);
+            causticsResult->setWrapMode(QOpenGLTexture::ClampToBorder);
             causticsResult->setMinificationFilter(QOpenGLTexture::Nearest);
             causticsResult->setMagnificationFilter(QOpenGLTexture::Nearest);
             causticsResult->allocateStorage();
@@ -1379,10 +1379,11 @@ void glShaderWindow::render()
         caustics_program->setUniformValue("radius", modelMesh->bsphere.r);
         caustics_program->setUniformValue("groundDistance", groundDistance * modelMesh->bsphere.r - m_center[1]);
         caustics_program->setUniformValue("center", m_center);
+        caustics_program->setUniformValue("frame_index", frame_index);
         caustics_program->setUniformValue("causticsMap", 5);
         glBindImageTexture(5, causticsResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
-        int worksize_x = 256;
-        int worksize_y = 256;
+        int worksize_x = 1024;
+        int worksize_y = 1024;
         glDispatchCompute(worksize_x / compute_groupsize_x, worksize_y / compute_groupsize_y, 1);
         glBindImageTexture(5, 0, 0, false, 0, GL_READ_ONLY, GL_RGBA32F); 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
