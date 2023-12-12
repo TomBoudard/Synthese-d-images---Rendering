@@ -1382,8 +1382,8 @@ void glShaderWindow::render()
         caustics_program->setUniformValue("frame_index", frame_index);
         caustics_program->setUniformValue("causticsMap", 5);
         glBindImageTexture(5, causticsResult->textureId(), 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
-        int worksize_x = 1024;
-        int worksize_y = 1024;
+        int worksize_x = 2048;
+        int worksize_y = 2048;
         glDispatchCompute(worksize_x / compute_groupsize_x, worksize_y / compute_groupsize_y, 1);
         glBindImageTexture(5, 0, 0, false, 0, GL_READ_ONLY, GL_RGBA32F); 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);

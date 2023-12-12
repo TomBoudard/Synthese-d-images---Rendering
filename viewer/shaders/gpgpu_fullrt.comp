@@ -142,90 +142,6 @@ float interpolate(float a0, float a1, float w) {
     return (a1 - a0) * (3.0 - w * 2.0) * w * w + a0;
 }
 
-// float dotGridGradient(ivec3 iuv, vec3 uv) {
-//     // Get gradient from integer coordinates
-//     // permTexture is 256*256
-//     vec3 gradient = texture(permTexture, vec2(iuv.xy % 256) / 256.).xyz * 4. - 1.;
-
-//     // Compute the distance vector
-//     vec3 d = uv - float(iuv);
-
-//     // Compute the dot-product
-//     return dot(d, gradient);
-// }
-
-// float perlinNoise(vec3 uv) {
-//     // Determine grid cell coordinates
-//     ivec3 uv0 = ivec3(floor(uv));
-//     ivec3 uv1 = uv0 + 1;
-
-//     // Determine interpolation weights
-//     vec3 s = fract(uv);
-        
-//     // Interpolate between grid point gradients
-//     float n0, n1, ix00, ix01, ix10, ix11, ix0, ix1, value;
-
-//     n0 = dotGridGradient(uv0, uv);
-//     n1 = dotGridGradient(ivec3(uv1.x, uv0.yz), uv);
-//     ix00 = interpolate(n0, n1, s.x);
-
-//     n0 = dotGridGradient(ivec3(uv0.x, uv1.y, uv0.z), uv);
-//     n1 = dotGridGradient(ivec3(uv1.xy, uv0.z), uv);
-//     ix01 = interpolate(n0, n1, s.x);
-
-//     ix0 = interpolate(ix00, ix01, s.y);
-
-//     n0 = dotGridGradient(ivec3(uv0.xy, uv1.z), uv);
-//     n1 = dotGridGradient(ivec3(uv1.x, uv0.y, uv1.z), uv);
-//     ix10 = interpolate(n0, n1, s.x);
-
-//     n0 = dotGridGradient(ivec3(uv0.x, uv1.yz), uv);
-//     n1 = dotGridGradient(uv1, uv);
-//     ix11 = interpolate(n0, n1, s.x);
-
-//     ix1 = interpolate(ix10, ix11, s.y);
-
-//     value = interpolate(ix0, ix1, s.z);
-
-//     return value;
-// }
-
-// float dotGridGradient(ivec2 iuv, vec2 uv) {
-//     // Get gradient from integer coordinates
-//     // permTexture is 256*256
-//     vec2 gradient = texture(permTexture, vec2(iuv % 256) / 256.).xy * 4. - 1.;
-
-//     // Compute the distance vector
-//     vec2 d = uv - float(iuv);
-
-//     // Compute the dot-product
-//     return dot(d, gradient);
-// }
-
-// float perlinNoise(vec2 uv) {
-//     // Determine grid cell coordinates
-//     ivec2 uv0 = ivec2(floor(uv));
-//     ivec2 uv1 = uv0 + 1;
-
-//     // Determine interpolation weights
-//     vec2 s = fract(uv);
-        
-//     // Interpolate between grid point gradients
-//     float n0, n1, ix0, ix1, value;
-
-//     n0 = dotGridGradient(uv0, uv);
-//     n1 = dotGridGradient(ivec2(uv1.x, uv0.y), uv);
-//     ix0 = interpolate(n0, n1, s.x);
-
-//     n0 = dotGridGradient(ivec2(uv0.x, uv1.y), uv);
-//     n1 = dotGridGradient(uv1, uv);
-//     ix1 = interpolate(n0, n1, s.x);
-
-//     value = interpolate(ix0, ix1, s.y);
-
-//     return value;
-// }
-
 float dotGridGradient(int ix, int iy, int iz, float x, float y, float z) {
     // Get gradient from integer coordinates
     // permTexture is 256*256
@@ -687,7 +603,7 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
     p = origin + h.t.x * dir;
     if (h.hit_vptr == GROUND_VPTR) {
         color = texture(colorTexture, h.t.pq);
-        color += vec4(texture(causticsMap, (h.t.pq + 1.) / 2.).xyz, 1);
+        color += vec4(texture(causticsMap, (h.t.pq + 3.) / 5.).xyz, 1);
         // TODO : use caustic
         p.y = -groundDistance;
         if (useNormalMap) {
@@ -699,6 +615,7 @@ void getLocal(vec4 origin, vec4 dir, hitinfo_t h, out vec4 color, out vec4 p, ou
         }
     } else {
         color = interpolateColor(h);
+        // procedural texture
         // float motif = perlinNoise(p.xyz);
         // motif = min(abs(motif) * 15., 1.);
         // motif = pow(motif, 50.);
